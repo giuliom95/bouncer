@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 include_directories(include)
 
 set( VSSD_SOURCES 
-   
+   src/sceneloader.cpp
 )
 
 add_library(${PROJECT_NAME} ${VSSD_SOURCES})
