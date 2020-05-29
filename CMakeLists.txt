@@ -11,5 +11,10 @@ set( VSSD_SOURCES
    src/sceneloader.cpp
 )
 
+set( VSSD_TESTS 
+   test/vssd.cpp
+)
+
 add_library(${PROJECT_NAME} ${VSSD_SOURCES})
+add_executable(${PROJECT_NAME}_test ${VSSD_TESTS})
 target_link_libraries( ${PROJECT_NAME} ${LIBS} m )
