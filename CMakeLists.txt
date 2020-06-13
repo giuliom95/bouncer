@@ -15,16 +15,11 @@ set( VSSD_TESTS
    test/vssd.cpp
 )
 
-add_library(embree3 SHARED IMPORTED)
-set_target_properties(embree3 PROPERTIES
-  IMPORTED_LOCATION ${EMBREE_LIB}
-  INTERFACE_INCLUDE_DIRECTORIES ${EMBREE_INCLUDE}
-)
-
+find_package(embree 3 REQUIRED)
 
 add_library(${PROJECT_NAME} ${VSSD_SOURCES})
-target_link_libraries(${PROJECT_NAME} embree3)
+target_link_libraries(${PROJECT_NAME} embree)
 
 add_executable(${PROJECT_NAME}_test ${VSSD_TESTS})
-target_link_libraries( ${PROJECT_NAME}_test embree3)
+target_link_libraries( ${PROJECT_NAME}_test embree)
 target_link_libraries( ${PROJECT_NAME}_test ${PROJECT_NAME})
