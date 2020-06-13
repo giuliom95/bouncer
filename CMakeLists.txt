@@ -23,6 +23,8 @@ set_target_properties(embree3 PROPERTIES
 
 
 add_library(${PROJECT_NAME} ${VSSD_SOURCES})
-target_link_libraries( ${PROJECT_NAME} embree3 )
+target_link_libraries(${PROJECT_NAME} embree3)
+
 add_executable(${PROJECT_NAME}_test ${VSSD_TESTS})
-target_link_libraries( ${PROJECT_NAME}_test embree3 )
+target_link_libraries( ${PROJECT_NAME}_test embree3)
+target_link_libraries( ${PROJECT_NAME}_test ${PROJECT_NAME})
