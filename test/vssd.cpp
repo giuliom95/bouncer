@@ -26,9 +26,11 @@ int main() {
 	
 
 	RTCDevice	embree_device	= rtcNewDevice("verbose=3");
-	RTCScene	embree_scene	= rtcNewScene(embree_device);
 
-	load_VSSD_embree("../scenes/cube/cube.json", embree_scene);
+	RTCScene embree_scene = load_VSSD_embree
+	(
+		"../scenes/cube/cube.json", embree_device
+	);
 
 	rtcReleaseScene(embree_scene);
 	rtcReleaseDevice(embree_device);

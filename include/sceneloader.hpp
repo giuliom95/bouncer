@@ -7,9 +7,16 @@
 #include <fstream>
 #include <vector>
 
-// For paths handling
+// Paths handling
 #include <filesystem>
 
-bool load_VSSD_embree(const std::filesystem::path& path, RTCScene& scene);
+// memcpy
+#include <cstring>
+
+RTCScene load_VSSD_embree
+(
+	const std::filesystem::path& json_path, 
+	RTCDevice& rtc_device
+);
 
 #endif
