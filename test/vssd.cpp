@@ -1,4 +1,4 @@
-#include "sceneloader.hpp"
+#include "vssd.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -11,14 +11,6 @@
 
 int main() {
 
-	/*std::ifstream infile{"../scenes/test_0000_vertices.bin", std::ios::binary};
-	float v[3];
-	infile.read((char*)&v, 3*sizeof(float));
-	std::cout << v[0] << std::endl;
-	std::cout << v[1] << std::endl;
-	std::cout << v[2] << std::endl;
-	infile.close();*/
-
 	// Activation of "Flush to Zero" and "Denormals are Zero" CPU modes.
 	// Embree reccomends them in sake of performance.
 	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
@@ -27,12 +19,9 @@ int main() {
 
 	RTCDevice	embree_device	= rtcNewDevice("verbose=3");
 
-	RTCScene embree_scene = load_VSSD_embree
-	(
-		"../scenes/cube/cube.json", embree_device
-	);
+	VSSD_embree_scene scene;
+	scene.load("../scenes/cube/cube.json", embree_device);
 
-	rtcReleaseScene(embree_scene);
 	rtcReleaseDevice(embree_device);
 
 	return 0;

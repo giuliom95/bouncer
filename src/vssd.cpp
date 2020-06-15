@@ -1,12 +1,12 @@
-#include "sceneloader.hpp"
+#include "vssd.hpp"
 
 void load_buffer(
-			RTCGeometry 			rtc_geom,
+			RTCGeometry 			embree_geom,
 	const 	nlohmann::json& 		json, 
 	const 	std::filesystem::path& 	parent_path,
 	const	size_t					element_size,
-	const	RTCBufferType			rtc_buf_type,
-	const	RTCFormat				rtc_data_format
+	const	RTCBufferType			embree_buf_type,
+	const	RTCFormat				embree_data_format
 ) {
 	int						amount		= json["amount"];
 	std::filesystem::path	file_path	= json["path"];
@@ -21,8 +21,8 @@ void load_buffer(
 
 	void* rtc_buf = rtcSetNewGeometryBuffer
 	(
-		rtc_geom, rtc_buf_type, 0,
-		rtc_data_format, element_size, amount
+		embree_geom, embree_buf_type, 0,
+		embree_data_format, element_size, amount
 	);
 	
 	std::ifstream infile{file_path, std::ios::binary};
@@ -36,11 +36,17 @@ void load_buffer(
 	
 }
 
-RTCScene load_VSSD_embree(
+VSSD_embree_scene::~VSSD_embree_scene()
+{
+	spdlog::info("Releasing scene");
+	rtcReleaseScene(embree_scene);
+}
+
+void VSSD_embree_scene::load(
 	const std::filesystem::path& json_path, 
-	RTCDevice& rtc_device
+	RTCDevice& embree_device
 ) {
-	RTCScene rtc_scene	= rtcNewScene(rtc_device);
+	embree_scene = rtcNewScene(embree_device);
 
 	const std::filesystem::path parent_path = json_path.parent_path();
 	nlohmann::json json_data;
@@ -59,16 +65,16 @@ RTCScene load_VSSD_embree(
 
 		spdlog::info("Found geometry");
 
-		const RTCGeometry rtc_geom = rtcNewGeometry
+		const RTCGeometry embree_geom = rtcNewGeometry
 		(
-			rtc_device,
+			embree_device,
 			RTC_GEOMETRY_TYPE_SUBDIVISION
 		);
 
 		spdlog::info("Loading indices");
 		load_buffer
 		(
-			rtc_geom, json_geom["indices"],
+			embree_geom, json_geom["indices"],
 			parent_path, sizeof(uint32_t),
 			RTC_BUFFER_TYPE_INDEX, RTC_FORMAT_UINT
 		);
@@ -76,7 +82,7 @@ RTCScene load_VSSD_embree(
 		spdlog::info("Loading vertices");
 		load_buffer
 		(
-			rtc_geom, json_geom["vertices"],
+			embree_geom, json_geom["vertices"],
 			parent_path, 3*sizeof(float),
 			RTC_BUFFER_TYPE_VERTEX, RTC_FORMAT_FLOAT3
 		);
@@ -84,20 +90,19 @@ RTCScene load_VSSD_embree(
 		spdlog::info("Loading faces");
 		load_buffer
 		(
-			rtc_geom, json_geom["faces"],
+			embree_geom, json_geom["faces"],
 			parent_path, sizeof(uint32_t),
 			RTC_BUFFER_TYPE_FACE, RTC_FORMAT_UINT
 		);
 
 		spdlog::info("Committing geometry");
-		rtcCommitGeometry(rtc_geom);
+		rtcCommitGeometry(embree_geom);
 		spdlog::info("Attaching geometry");
-		rtcAttachGeometry(rtc_scene, rtc_geom);
+		rtcAttachGeometry(embree_scene, embree_geom);
 		spdlog::info("Releasing geometry");
-		rtcReleaseGeometry(rtc_geom);
+		rtcReleaseGeometry(embree_geom);
 	}
 
 	spdlog::info("Committing scene");
-	rtcCommitScene(rtc_scene);
-	return rtc_scene;
+	rtcCommitScene(embree_scene);
 }
