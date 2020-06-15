@@ -10,8 +10,7 @@
 // Paths handling
 #include <filesystem>
 
-// memcpy
-#include <cstring>
+
 
 class VSSD_embree_scene
 {
