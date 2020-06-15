@@ -1,5 +1,5 @@
-#ifndef _VSSD_HPP_
-#define _VSSD_HPP_
+#ifndef _SCENE_HPP_
+#define _SCENE_HPP_
 
 #include "nlohmann/json.hpp"
 #include <embree3/rtcore.h>
@@ -10,14 +10,12 @@
 // Paths handling
 #include <filesystem>
 
-
-
-class VSSD_embree_scene
+class Scene
 {
 public:
 	RTCScene embree_scene;
 
-	~VSSD_embree_scene();
+	~Scene();
 
 	void load
 	(

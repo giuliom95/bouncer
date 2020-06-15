@@ -1,4 +1,4 @@
-#include "vssd.hpp"
+#include "scene.hpp"
 
 void load_buffer(
 			RTCGeometry 			embree_geom,
@@ -36,13 +36,13 @@ void load_buffer(
 	
 }
 
-VSSD_embree_scene::~VSSD_embree_scene()
+Scene::~Scene()
 {
 	spdlog::info("Releasing scene");
 	rtcReleaseScene(embree_scene);
 }
 
-void VSSD_embree_scene::load(
+void Scene::load(
 	const std::filesystem::path& json_path, 
 	RTCDevice& embree_device
 ) {
