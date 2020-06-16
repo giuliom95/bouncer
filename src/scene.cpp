@@ -36,6 +36,32 @@ void load_buffer(
 	
 }
 
+Camera load_camera(const nlohmann::json& json_camera)
+{
+	spdlog::info("Loading camera");
+	return
+	{
+		json_camera["gate"],
+		json_camera["focal"],
+		{
+			json_camera["eye"][0],
+			json_camera["eye"][1],
+			json_camera["eye"][2]
+		},
+		{
+			json_camera["up"][0],
+			json_camera["up"][1],
+			json_camera["up"][2]
+		},
+		{
+			json_camera["look"][0],
+			json_camera["look"][1],
+			json_camera["look"][2]
+		}
+	};
+}
+
+
 Scene::~Scene()
 {
 	spdlog::info("Releasing scene");
@@ -59,6 +85,7 @@ void Scene::load(
 	json_file >> json_data;
 	json_file.close();
 
+	camera = load_camera(json_data["camera"]);
 
 	for(const nlohmann::json json_geom : json_data["geometries"]) 
 	{

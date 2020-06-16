@@ -1,7 +1,9 @@
 #ifndef _SCENE_HPP_
 #define _SCENE_HPP_
 
+#include "math.hpp"
 #include "nlohmann/json.hpp"
+
 #include <embree3/rtcore.h>
 #include <spdlog/spdlog.h>
 #include <fstream>
@@ -10,11 +12,21 @@
 // Paths handling
 #include <filesystem>
 
+struct Camera
+{
+	float gate;
+	float focal;
+	Vec3f eye;
+	Vec3f up;
+	Vec3f look;
+};
+
 class Scene
 {
 public:
-	RTCScene embree_scene;
-
+	RTCScene	embree_scene;
+	Camera		camera;
+	
 	~Scene();
 
 	void load
