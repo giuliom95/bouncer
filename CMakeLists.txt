@@ -16,10 +16,11 @@ set( BOUNCER_SOURCES
    src/bouncer.cpp
 )
 
-find_package(spdlog 1 REQUIRED)
 find_package(embree 3 REQUIRED)
+find_package(Threads REQUIRED)
+find_package(Boost COMPONENTS log REQUIRED)
 
 add_executable(${PROJECT_NAME} ${BOUNCER_SOURCES})
-target_link_libraries(${PROJECT_NAME} spdlog)
-target_link_libraries(${PROJECT_NAME} embree)
-target_link_libraries(${PROJECT_NAME} stdc++fs)
+target_link_libraries(${PROJECT_NAME} embree stdc++fs)
+target_link_libraries(${PROJECT_NAME} ${Boost_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT})

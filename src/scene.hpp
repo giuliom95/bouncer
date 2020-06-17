@@ -3,7 +3,8 @@
 
 #include "math.hpp"
 #include "nlohmann/json.hpp"
-#include "logger.hpp"
+
+#include <boost/log/trivial.hpp>
 
 #include <embree3/rtcore.h>
 #include <fstream>

@@ -13,10 +13,9 @@ void load_buffer(
 	if(file_path.is_relative())
 		file_path = parent_path / file_path;
 
-	std::cout << logger::infotag() <<
+	BOOST_LOG_TRIVIAL(info) <<
 		"Loading " << amount << "(*" << element_size << 
-		" bytes) elements from \"" << file_path.string() << "\"" <<
-	std::endl;
+		" bytes) elements from \"" << file_path.string() << "\"";
 
 	void* rtc_buf = rtcSetNewGeometryBuffer
 	(
@@ -27,9 +26,8 @@ void load_buffer(
 	std::ifstream infile{file_path, std::ios::binary};
 	if(!infile)
 	{
-		std::cout << logger::errortag <<
-			"Could not open \"" << file_path.string() << "\"" <<
-		std::endl;
+		BOOST_LOG_TRIVIAL(fatal) <<
+			"Could not open \"" << file_path.string() << "\"";
 		throw std::runtime_error("Could not open buffer file");
 	}
 	infile.read((char*)rtc_buf, element_size*amount);
@@ -39,7 +37,7 @@ void load_buffer(
 
 Camera load_camera(const nlohmann::json& json_camera)
 {
-	std::cout << logger::infotag() << "Loading camera" << std::endl;
+	BOOST_LOG_TRIVIAL(info) << "Loading camera";
 	return
 	{
 		json_camera["gate"],
@@ -65,7 +63,7 @@ Camera load_camera(const nlohmann::json& json_camera)
 
 Scene::~Scene()
 {
-	std::cout << logger::infotag() << "Releasing scene" << std::endl;
+	BOOST_LOG_TRIVIAL(info) << "Releasing scene";
 	rtcReleaseScene(embree_scene);
 }
 
@@ -80,9 +78,8 @@ void Scene::load(
 	std::ifstream json_file{json_path};
 	if(!json_file) 
 	{
-		std::cout << logger::errortag <<
-			"Could not open \"" << json_path.string() << "\"" <<
-		std::endl;
+		BOOST_LOG_TRIVIAL(fatal) <<
+			"Could not open \"" << json_path.string() << "\"";
 		throw std::runtime_error("Could not open scene file");
 	}
 	json_file >> json_data;
@@ -92,7 +89,7 @@ void Scene::load(
 
 	for(const nlohmann::json json_geom : json_data["geometries"]) 
 	{
-		std::cout << logger::infotag() << "Found geometry" << std::endl;
+		BOOST_LOG_TRIVIAL(info) << "Found geometry";
 
 		const RTCGeometry embree_geom = rtcNewGeometry
 		(
@@ -100,7 +97,7 @@ void Scene::load(
 			RTC_GEOMETRY_TYPE_SUBDIVISION
 		);
 
-		std::cout << logger::infotag() << "Loading indices" << std::endl;
+		BOOST_LOG_TRIVIAL(info) << "Loading indices";
 		load_buffer
 		(
 			embree_geom, json_geom["indices"],
@@ -108,7 +105,7 @@ void Scene::load(
 			RTC_BUFFER_TYPE_INDEX, RTC_FORMAT_UINT
 		);
 
-		std::cout << logger::infotag() << "Loading vertices" << std::endl;
+		BOOST_LOG_TRIVIAL(info) << "Loading vertices";
 		load_buffer
 		(
 			embree_geom, json_geom["vertices"],
@@ -116,7 +113,7 @@ void Scene::load(
 			RTC_BUFFER_TYPE_VERTEX, RTC_FORMAT_FLOAT3
 		);
 
-		std::cout << logger::infotag() << "Loading faces" << std::endl;
+		BOOST_LOG_TRIVIAL(info) << "Loading faces";
 		load_buffer
 		(
 			embree_geom, json_geom["faces"],
@@ -124,14 +121,14 @@ void Scene::load(
 			RTC_BUFFER_TYPE_FACE, RTC_FORMAT_UINT
 		);
 
-		std::cout << logger::infotag() << "Committing geometry" << std::endl;
+		BOOST_LOG_TRIVIAL(info) << "Committing geometry";
 		rtcCommitGeometry(embree_geom);
-		std::cout << logger::infotag() << "Attaching geometry" << std::endl;
+		BOOST_LOG_TRIVIAL(info) << "Attaching geometry";
 		rtcAttachGeometry(embree_scene, embree_geom);
-		std::cout << logger::infotag() << "Releasing geometry" << std::endl;
+		BOOST_LOG_TRIVIAL(info) << "Releasing geometry";
 		rtcReleaseGeometry(embree_geom);
 	}
 
-	std::cout << logger::infotag() << "Committing scene" << std::endl;
+	BOOST_LOG_TRIVIAL(info) << "Committing scene";
 	rtcCommitScene(embree_scene);
 }
