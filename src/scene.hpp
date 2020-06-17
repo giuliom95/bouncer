@@ -3,9 +3,9 @@
 
 #include "math.hpp"
 #include "nlohmann/json.hpp"
+#include "logger.hpp"
 
 #include <embree3/rtcore.h>
-#include <spdlog/spdlog.h>
 #include <fstream>
 #include <vector>
 
