@@ -1,15 +1,15 @@
 #include "scene.hpp"
 
 void load_buffer(
-			RTCGeometry 			embree_geom,
-	const 	nlohmann::json& 		json, 
-	const 	std::filesystem::path& 	parent_path,
-	const	size_t					element_size,
-	const	RTCBufferType			embree_buf_type,
-	const	RTCFormat				embree_data_format
+			RTCGeometry 				embree_geom,
+	const 	nlohmann::json& 			json, 
+	const 	boost::filesystem::path&	parent_path,
+	const	size_t						element_size,
+	const	RTCBufferType				embree_buf_type,
+	const	RTCFormat					embree_data_format
 ) {
 	int						amount		= json["amount"];
-	std::filesystem::path	file_path	= json["path"];
+	boost::filesystem::path	file_path	= json["path"];
 	if(file_path.is_relative())
 		file_path = parent_path / file_path;
 
@@ -23,7 +23,7 @@ void load_buffer(
 		embree_data_format, element_size, amount
 	);
 	
-	std::ifstream infile{file_path, std::ios::binary};
+	std::ifstream infile{file_path.string(), std::ios::binary};
 	if(!infile)
 	{
 		BOOST_LOG_TRIVIAL(fatal) <<
@@ -68,14 +68,14 @@ Scene::~Scene()
 }
 
 void Scene::load(
-	const std::filesystem::path& json_path, 
+	const boost::filesystem::path& json_path, 
 	RTCDevice& embree_device
 ) {
 	embree_scene = rtcNewScene(embree_device);
 
-	const std::filesystem::path parent_path = json_path.parent_path();
+	const boost::filesystem::path parent_path = json_path.parent_path();
 	nlohmann::json json_data;
-	std::ifstream json_file{json_path};
+	std::ifstream json_file{json_path.string()};
 	if(!json_file) 
 	{
 		BOOST_LOG_TRIVIAL(fatal) <<

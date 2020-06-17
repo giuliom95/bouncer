@@ -5,13 +5,11 @@
 #include "nlohmann/json.hpp"
 
 #include <boost/log/trivial.hpp>
+#include <boost/filesystem.hpp>
 
 #include <embree3/rtcore.h>
 #include <fstream>
 #include <vector>
-
-// Paths handling
-#include <filesystem>
 
 struct Camera
 {
@@ -32,7 +30,7 @@ public:
 
 	void load
 	(
-		const std::filesystem::path& json_path, 
+		const boost::filesystem::path& json_path, 
 		RTCDevice& embree_device
 	);
 };
