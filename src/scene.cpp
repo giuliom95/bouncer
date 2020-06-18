@@ -42,6 +42,7 @@ Camera load_camera(const nlohmann::json& json_camera)
 	{
 		json_camera["gate"],
 		json_camera["focal"],
+		json_camera["aspect"],
 		{
 			json_camera["eye"][0],
 			json_camera["eye"][1],
