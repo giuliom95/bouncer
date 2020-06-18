@@ -33,9 +33,22 @@ RTCRay Camera::generate_ray(const Vec2f ij)
 	r.id    = 0;
 	r.flags = 0;
 
-	// r.org_x = eye[0];
-	// r.org_y = eye[1];
-	// r.org_z = eye[2];
+	const Vec3f eye = transformPoint(mat, {});
+	r.org_x = eye[0];
+	r.org_y = eye[1];
+	r.org_z = eye[2];
+
+	const Vec3f on_film
+	{
+		ij[0]*.5f*(aspect*gate),
+		ij[1]*.5f*(gate),
+		-focal*MM_TO_CM
+	};
+	const Vec3f in_world = normalize(transformVector(mat, on_film));
+
+	r.dir_x = in_world[0];
+	r.dir_y = in_world[1];
+	r.dir_z = in_world[2];
 
 	return r;
 }
