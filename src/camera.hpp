@@ -8,7 +8,7 @@ class Camera
 {
 public:
 	inline Camera() {}
-	
+
 	Camera(
 		const float vertical_gate_size,
 		const float focal_lenght,
@@ -17,7 +17,7 @@ public:
 		const Vec3f look_direction,
 		const Vec3f up_vector
 	);
-	RTCRay generate_ray(const Vec2f ij);
+	RTCRay generate_ray (const Vec2f ij);
 
 private:
  	float gate;

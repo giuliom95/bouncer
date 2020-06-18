@@ -9,11 +9,26 @@
 
 #include <boost/log/trivial.hpp>
 
-void rt(OIIO::ImageBuf& image, const Scene& scene)
+void rt(OIIO::ImageBuf& image, Scene& scene)
 {
 	for(OIIO::ImageBuf::Iterator<float> it(image); !it.done(); ++it)
 	{
+		const Vec2f ij
+		{
+			2.0f*(
+				(float)(it.x() - image.xbegin()) / 
+				(float)(image.xend() - image.xbegin() - 1)
+			) - 1.0f,
+			-2.0f*(
+				(float)(it.y() - image.ybegin()) / 
+				(float)(image.yend() - image.ybegin() - 1)
+			) + 1.0f
+		};
 		
+		RTCRay r = scene.camera.generate_ray(ij);
+		it[0] = r.dir_x;
+		it[1] = r.dir_y;
+		it[2] = r.dir_z;
 	}
 }
 
@@ -33,7 +48,7 @@ int main()
 
 	OIIO::ImageBuf image{{1024, 1024, 3, OIIO::TypeDesc::FLOAT}};
 	rt(image, scene);
-	image.write("text.png");
+	image.write("test.exr");
 
 	rtcReleaseDevice(embree_device);
 }
