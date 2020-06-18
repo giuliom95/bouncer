@@ -12,6 +12,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 include_directories(include)
 
 set( BOUNCER_SOURCES 
+   src/camera.cpp
    src/scene.cpp
    src/bouncer.cpp
 )
