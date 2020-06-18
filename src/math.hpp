@@ -53,19 +53,19 @@ inline std::ostream& operator<<(std::ostream& os, Vec3f& v) {
 
 //////// MATRIX ////////
 
-class Mat4 {
+class Mat4f {
 	std::array<float, 16> data;
 public:
-	Mat4() : data {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1} {}
+	Mat4f() : data {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1} {}
 
-	Mat4(	float a00, float a01, float a02, float a03,
+	Mat4f(	float a00, float a01, float a02, float a03,
 			float a10, float a11, float a12, float a13,
 			float a20, float a21, float a22, float a23,
 			float a30, float a31, float a32, float a33)
 			: data{	a00, a01, a02, a03, a10, a11, a12, a13, 
 					a20, a21, a22, a23, a30, a31, a32, a33} {}
 
-	Mat4(	const Vec3f& x, const Vec3f& y, const Vec3f& z, const Vec3f& w)
+	Mat4f(	const Vec3f& x, const Vec3f& y, const Vec3f& z, const Vec3f& w)
 			: data{	x[0], y[0], z[0], w[0],
 					x[1], y[1], z[1], w[1],
 					x[2], y[2], z[2], w[2],
@@ -76,10 +76,10 @@ public:
 	const 	float& operator()(int i, int j) const	{ return data[i*4+j]; }
 };
 
-inline const Vec3f transformPoint	(const Mat4& m, const Vec3f& p) { return {m(0,0)*p[0] + m(0,1)*p[1] + m(0,2)*p[2] + m(0,3), m(1,0)*p[0] + m(1,1)*p[1] + m(1,2)*p[2] + m(1,3), m(2,0)*p[0] + m(2,1)*p[1] + m(2,2)*p[2] + m(2,3)}; }
-inline const Vec3f transformVector	(const Mat4& m, const Vec3f& v) { return {m(0,0)*v[0] + m(0,1)*v[1] + m(0,2)*v[2], m(1,0)*v[0] + m(1,1)*v[1] + m(1,2)*v[2], m(2,0)*v[0] + m(2,1)*v[1] + m(2,2)*v[2]}; }
+inline const Vec3f transformPoint	(const Mat4f& m, const Vec3f& p) { return {m(0,0)*p[0] + m(0,1)*p[1] + m(0,2)*p[2] + m(0,3), m(1,0)*p[0] + m(1,1)*p[1] + m(1,2)*p[2] + m(1,3), m(2,0)*p[0] + m(2,1)*p[1] + m(2,2)*p[2] + m(2,3)}; }
+inline const Vec3f transformVector	(const Mat4f& m, const Vec3f& v) { return {m(0,0)*v[0] + m(0,1)*v[1] + m(0,2)*v[2], m(1,0)*v[0] + m(1,1)*v[1] + m(1,2)*v[2], m(2,0)*v[0] + m(2,1)*v[1] + m(2,2)*v[2]}; }
 
-inline const Mat4 refFromVec (const Vec3f& v) {
+inline const Mat4f refFromVec (const Vec3f& v) {
 	Vec3f v2{};
 	if (std::abs(v[0]) > std::abs(v[1]))
 		v2 = Vec3f{-v[2], 0, v[0]} / std::sqrt(v[0] * v[0] + v[2] * v[2]);
@@ -90,7 +90,7 @@ inline const Mat4 refFromVec (const Vec3f& v) {
 	return {v, v2, v3, {}};
 }
 
-inline const Mat4 transpose (const Mat4& m) {
+inline const Mat4f transpose (const Mat4f& m) {
 	return {	m[0], m[4],  m[8], m[12],
 				m[1], m[5],  m[9], m[13],
 				m[2], m[6], m[10], m[14],

@@ -7,12 +7,23 @@
 class Camera
 {
 public:
-	float gate;
+	inline Camera() {}
+	
+	Camera(
+		const float vertical_gate_size,
+		const float focal_lenght,
+		const float aspect_ratio,
+		const Vec3f eye_positon,
+		const Vec3f look_direction,
+		const Vec3f up_vector
+	);
+	RTCRay generate_ray(const Vec2f ij);
+
+private:
+ 	float gate;
 	float focal;
 	float aspect;
-	Vec3f eye;
-	Vec3f up;
-	Vec3f look;
+	Mat4f mat;
 };
 
 #endif

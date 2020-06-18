@@ -49,14 +49,14 @@ Camera load_camera(const nlohmann::json& json_camera)
 			json_camera["eye"][2]
 		},
 		{
-			json_camera["up"][0],
-			json_camera["up"][1],
-			json_camera["up"][2]
-		},
-		{
 			json_camera["look"][0],
 			json_camera["look"][1],
 			json_camera["look"][2]
+		},
+		{
+			json_camera["up"][0],
+			json_camera["up"][1],
+			json_camera["up"][2]
 		}
 	};
 }
