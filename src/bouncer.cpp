@@ -4,6 +4,19 @@
 #include <pmmintrin.h>
 #include <embree3/rtcore.h>
 
+#include <OpenImageIO/imageio.h>
+#include <OpenImageIO/imagebuf.h>
+
+#include <boost/log/trivial.hpp>
+
+void rt(OIIO::ImageBuf& image, const Scene& scene)
+{
+	for(OIIO::ImageBuf::Iterator<float> it(image); !it.done(); ++it)
+	{
+		
+	}
+}
+
 int main()
 {
 	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
@@ -17,6 +30,10 @@ int main()
 		"../scenes/cube/cube.json",
 		embree_device
 	);
+
+	OIIO::ImageBuf image{{1024, 1024, 3, OIIO::TypeDesc::FLOAT}};
+	rt(image, scene);
+	image.write("text.png");
 
 	rtcReleaseDevice(embree_device);
 }

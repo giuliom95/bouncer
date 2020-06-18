@@ -12,7 +12,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 include_directories(include)
 
 set( BOUNCER_SOURCES 
-   src/image.cpp
    src/camera.cpp
    src/scene.cpp
    src/bouncer.cpp
@@ -20,9 +19,11 @@ set( BOUNCER_SOURCES
 
 find_package(embree 3 REQUIRED)
 find_package(Threads REQUIRED)
+find_package(OpenImageIO REQUIRED)
 find_package(Boost COMPONENTS log filesystem REQUIRED)
 
 add_executable(${PROJECT_NAME} ${BOUNCER_SOURCES})
 target_link_libraries(${PROJECT_NAME} embree)
+target_link_libraries(${PROJECT_NAME} OpenImageIO)
 target_link_libraries(${PROJECT_NAME} ${Boost_LIBRARIES})
 target_link_libraries(${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT})
