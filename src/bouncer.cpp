@@ -54,9 +54,11 @@ void rt(OIIO::ImageBuf& image, Scene& scene)
 			ia.valueCount	= 3;
 			rtcInterpolate(&ia);
 			Vec3f n = normalize(cross(dpdu, dpdv));
-			it[0] = n[0];
-			it[1] = n[1];
-			it[2] = n[2];
+			// Debug lambertian shading
+			float v = 0.8*max(dot(n, normalize({0.5,1.2,-.8})), 0) + 0.2f;
+			it[0] = v; //n[0];
+			it[1] = v; //n[1];
+			it[2] = v; //n[2];
 		}
 	}
 }

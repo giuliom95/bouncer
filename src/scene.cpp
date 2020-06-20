@@ -32,7 +32,49 @@ void load_buffer(
 	}
 	infile.read((char*)rtc_buf, element_size*amount);
 	infile.close();
-	
+
+}
+
+// This is an hack to work with hard-edge scenes before triangle rendering
+void crease_all(const RTCGeometry embree_geom, int amount)
+{
+	uint32_t* idx_buf = (uint32_t*)rtcGetGeometryBufferData
+	(
+		embree_geom, RTC_BUFFER_TYPE_INDEX, 0
+	);
+
+	uint32_t* crease_edge_idx_buf = (uint32_t*)rtcSetNewGeometryBuffer
+	(
+		embree_geom, RTC_BUFFER_TYPE_EDGE_CREASE_INDEX, 0,
+		RTC_FORMAT_UINT2, 2*sizeof(uint32_t), 2*amount
+	);
+	float* crease_edge_val_buf = (float*)rtcSetNewGeometryBuffer
+	(
+		embree_geom, RTC_BUFFER_TYPE_EDGE_CREASE_WEIGHT, 0,
+		RTC_FORMAT_FLOAT, sizeof(float), 2*amount
+	);
+	uint32_t* crease_vtx_idx_buf = (uint32_t*)rtcSetNewGeometryBuffer
+	(
+		embree_geom, RTC_BUFFER_TYPE_VERTEX_CREASE_INDEX, 0,
+		RTC_FORMAT_UINT, sizeof(uint32_t), amount
+	);
+	float* crease_vtx_val_buf = (float*)rtcSetNewGeometryBuffer
+	(
+		embree_geom, RTC_BUFFER_TYPE_VERTEX_CREASE_WEIGHT, 0,
+		RTC_FORMAT_FLOAT, sizeof(float), amount
+	);
+	for(int i = 0; i < amount; ++i)
+	{
+		crease_edge_idx_buf[i*2]   = idx_buf[i];
+		int j = i == amount - 1 ? 0 : i + 1;
+		crease_edge_idx_buf[i*2+1] = idx_buf[j];
+
+		crease_edge_val_buf[i*2]   = INFINITY;
+		crease_edge_val_buf[i*2+1] = INFINITY;
+
+		crease_vtx_idx_buf[i] = i;
+		crease_vtx_val_buf[i] = INFINITY;
+	}
 }
 
 Camera load_camera(const nlohmann::json& json_camera)
@@ -123,7 +165,8 @@ void Scene::load(
 		);
 
 		BOOST_LOG_TRIVIAL(info) << "Setting subdivision level";
-		rtcSetGeometryTessellationRate(embree_geom, 4);
+		rtcSetGeometryTessellationRate(embree_geom, 0);
+		crease_all(embree_geom, json_geom["indices"]["amount"]);
 
 		BOOST_LOG_TRIVIAL(info) << "Committing geometry";
 		rtcCommitGeometry(embree_geom);
