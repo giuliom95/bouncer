@@ -122,6 +122,9 @@ void Scene::load(
 			RTC_BUFFER_TYPE_FACE, RTC_FORMAT_UINT
 		);
 
+		BOOST_LOG_TRIVIAL(info) << "Setting subdivision level";
+		rtcSetGeometryTessellationRate(embree_geom, 4);
+
 		BOOST_LOG_TRIVIAL(info) << "Committing geometry";
 		rtcCommitGeometry(embree_geom);
 		BOOST_LOG_TRIVIAL(info) << "Attaching geometry";
