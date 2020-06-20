@@ -39,9 +39,24 @@ void rt(OIIO::ImageBuf& image, Scene& scene)
 
 		if(rh.hit.geomID != RTC_INVALID_GEOMETRY_ID)
 		{
-			it[0] = rh.hit.u;
-			it[1] = rh.hit.v;
-			//it[2] = rh.hit.Ng_z;
+			Vec3f dpdu, dpdv;
+			RTCInterpolateArguments ia;
+			ia.geometry		= rtcGetGeometry(scene.embree_scene, rh.hit.geomID);
+			ia.primID		= rh.hit.primID;
+			ia.u			= rh.hit.u;
+			ia.v			= rh.hit.v;
+			ia.bufferType	= RTC_BUFFER_TYPE_VERTEX;
+			ia.bufferSlot	= 0;
+			ia.P			= nullptr;
+			ia.dPdu			= (float*)(&dpdu);
+			ia.dPdv			= (float*)(&dpdv);
+			ia.ddPdudu		= nullptr;
+			ia.valueCount	= 3;
+			rtcInterpolate(&ia);
+			Vec3f n = normalize(cross(dpdu, dpdv));
+			it[0] = n[0];
+			it[1] = n[1];
+			it[2] = n[2];
 		}
 	}
 }
@@ -56,7 +71,7 @@ int main()
 	Scene scene;
 	scene.load
 	(
-		"../scenes/cube/cube.json",
+		"../scenes/cornellbox/cornellbox.json",
 		embree_device
 	);
 

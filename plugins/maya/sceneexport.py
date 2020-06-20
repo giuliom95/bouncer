@@ -21,7 +21,7 @@ def exportVSSD(path, camName):
     }
     
     geomIdx = 0
-    geomList = pmc.ls(geometry=True)
+    geomList = pmc.ls(type='mesh', visible=True)
     mainFileGeoms = []
     for geom in geomList:
         faceBuf = ''
