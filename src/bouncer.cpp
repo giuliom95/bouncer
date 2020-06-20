@@ -11,6 +11,9 @@
 
 void rt(OIIO::ImageBuf& image, Scene& scene)
 {
+	RTCIntersectContext intersect_context;
+	rtcInitIntersectContext(&intersect_context);
+
 	for(OIIO::ImageBuf::Iterator<float> it(image); !it.done(); ++it)
 	{
 		const Vec2f ij
@@ -25,10 +28,21 @@ void rt(OIIO::ImageBuf& image, Scene& scene)
 			) + 1.0f
 		};
 		
-		RTCRay r = scene.camera.generate_ray(ij);
-		it[0] = r.dir_x;
-		it[1] = r.dir_y;
-		it[2] = r.dir_z;
+		RTCRayHit rh
+		{
+			scene.camera.generate_ray(ij),
+			{}
+		};
+		rh.hit.geomID = RTC_INVALID_GEOMETRY_ID;
+
+		rtcIntersect1(scene.embree_scene, &intersect_context, &rh);
+
+		if(rh.hit.geomID != RTC_INVALID_GEOMETRY_ID)
+		{
+			it[0] = rh.hit.u;
+			it[1] = rh.hit.v;
+			//it[2] = rh.hit.Ng_z;
+		}
 	}
 }
 
