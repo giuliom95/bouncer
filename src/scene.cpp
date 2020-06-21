@@ -148,6 +148,11 @@ void Scene::load(
 		BOOST_LOG_TRIVIAL(info) << "Setting subdivision level";
 		rtcSetGeometryTessellationRate(embree_geom, 2);
 
+		rtcSetGeometrySubdivisionMode
+		(
+			embree_geom, 0,
+			RTC_SUBDIVISION_MODE_PIN_CORNERS
+		);
 
 		BOOST_LOG_TRIVIAL(info) << "Committing geometry";
 		rtcCommitGeometry(embree_geom);
