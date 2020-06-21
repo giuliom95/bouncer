@@ -1,38 +1,19 @@
 #include "scene.hpp"
 
 void load_buffer(
-			RTCGeometry 				embree_geom,
-	const 	nlohmann::json& 			json, 
-	const 	boost::filesystem::path&	parent_path,
-	const	size_t						element_size,
-	const	RTCBufferType				embree_buf_type,
-	const	RTCFormat					embree_data_format
+			RTCGeometry		embree_geom,
+			std::ifstream&	buffers_file,
+	const	size_t			element_size,
+	const	size_t			buffer_size,
+	const	RTCBufferType	embree_buf_type,
+	const	RTCFormat		embree_data_format
 ) {
-	int						amount		= json["amount"];
-	boost::filesystem::path	file_path	= json["path"];
-	if(file_path.is_relative())
-		file_path = parent_path / file_path;
-
-	BOOST_LOG_TRIVIAL(info) <<
-		"Loading " << amount << "(*" << element_size << 
-		" bytes) elements from \"" << file_path.string() << "\"";
-
-	void* rtc_buf = rtcSetNewGeometryBuffer
+	void* embree_buf = rtcSetNewGeometryBuffer
 	(
 		embree_geom, embree_buf_type, 0,
-		embree_data_format, element_size, amount
+		embree_data_format, element_size, buffer_size / element_size
 	);
-	
-	std::ifstream infile{file_path.string(), std::ios::binary};
-	if(!infile)
-	{
-		BOOST_LOG_TRIVIAL(fatal) <<
-			"Could not open \"" << file_path.string() << "\"";
-		throw std::runtime_error("Could not open buffer file");
-	}
-	infile.read((char*)rtc_buf, element_size*amount);
-	infile.close();
-
+	buffers_file.read((char*)embree_buf, buffer_size);
 }
 
 // This is an hack to work with hard-edge scenes before triangle rendering
@@ -116,7 +97,6 @@ void Scene::load(
 ) {
 	embree_scene = rtcNewScene(embree_device);
 
-	const boost::filesystem::path parent_path = json_path.parent_path();
 	nlohmann::json json_data;
 	std::ifstream json_file{json_path.string()};
 	if(!json_file) 
@@ -127,6 +107,17 @@ void Scene::load(
 	}
 	json_file >> json_data;
 	json_file.close();
+
+
+	boost::filesystem::path buffers_file_path = json_path;
+	buffers_file_path.replace_extension(".bin");
+	std::ifstream buffers_file{buffers_file_path.string()};
+	if(!buffers_file) 
+	{
+		BOOST_LOG_TRIVIAL(fatal) <<
+			"Could not open \"" << buffers_file_path.string() << "\"";
+		throw std::runtime_error("Could not open scene buffers file");
+	}
 
 	camera = load_camera(json_data["camera"]);
 
@@ -140,33 +131,44 @@ void Scene::load(
 			RTC_GEOMETRY_TYPE_SUBDIVISION
 		);
 
-		BOOST_LOG_TRIVIAL(info) << "Loading indices";
-		load_buffer
-		(
-			embree_geom, json_geom["indices"],
-			parent_path, sizeof(uint32_t),
-			RTC_BUFFER_TYPE_INDEX, RTC_FORMAT_UINT
-		);
-
-		BOOST_LOG_TRIVIAL(info) << "Loading vertices";
-		load_buffer
-		(
-			embree_geom, json_geom["vertices"],
-			parent_path, 3*sizeof(float),
-			RTC_BUFFER_TYPE_VERTEX, RTC_FORMAT_FLOAT3
-		);
-
-		BOOST_LOG_TRIVIAL(info) << "Loading faces";
-		load_buffer
-		(
-			embree_geom, json_geom["faces"],
-			parent_path, sizeof(uint32_t),
-			RTC_BUFFER_TYPE_FACE, RTC_FORMAT_UINT
-		);
+		for(const nlohmann::json json_buf : json_geom["buffers"])
+		{
+			std::string type = json_buf["type"];
+			if(type == "faces")
+			{
+				BOOST_LOG_TRIVIAL(info) << "Loading faces";
+				load_buffer
+				(
+					embree_geom, buffers_file,
+					sizeof(uint32_t), (size_t)json_buf["size"], 
+					RTC_BUFFER_TYPE_FACE, RTC_FORMAT_UINT
+				);
+			}
+			else if(type == "indices")
+			{
+				BOOST_LOG_TRIVIAL(info) << "Loading indices";
+				load_buffer
+				(
+					embree_geom, buffers_file,
+					sizeof(uint32_t), (size_t)json_buf["size"], 
+					RTC_BUFFER_TYPE_INDEX, RTC_FORMAT_UINT
+				);
+			}
+			else if(type == "vertices")
+			{
+				BOOST_LOG_TRIVIAL(info) << "Loading vertices";
+				load_buffer
+				(
+					embree_geom, buffers_file,
+					3*sizeof(float), (size_t)json_buf["size"], 
+					RTC_BUFFER_TYPE_VERTEX, RTC_FORMAT_FLOAT3
+				);
+			}
+		}
 
 		BOOST_LOG_TRIVIAL(info) << "Setting subdivision level";
-		rtcSetGeometryTessellationRate(embree_geom, 0);
-		crease_all(embree_geom, json_geom["indices"]["amount"]);
+		rtcSetGeometryTessellationRate(embree_geom, 2);
+		//crease_all(embree_geom, json_geom["indices"]["amount"]);
 
 		BOOST_LOG_TRIVIAL(info) << "Committing geometry";
 		rtcCommitGeometry(embree_geom);

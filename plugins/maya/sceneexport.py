@@ -7,7 +7,7 @@ def exportVSSD(path, camName):
     
     mainFileDict = {}
     mainFilePath = path
-    mainFileName = os.path.basename(path)
+    mainFileStem = os.path.basename(path)[:-5]
     mainFileDir  = os.path.dirname(path)
     
     cam = pmc.ls(camName)[0].getShape()
@@ -20,53 +20,66 @@ def exportVSSD(path, camName):
         'look'  : list(cam.viewDirection(space='world'))
     }
     
-    geomIdx = 0
+    bufPath = os.path.join(mainFileDir, '{}.bin'.format(mainFileStem))
+
     geomList = pmc.ls(type='mesh', visible=True)
     mainFileGeoms = []
-    for geom in geomList:
-        faceBuf = ''
-        idxBuf = ''
-        vtxBuf = ''
-        nidxs = 0
-        for face in geom.f:
-            vtxidxs = face.getVertices()
-            nvtxidxs = len(vtxidxs)
-            faceBuf += struct.pack('<I', nvtxidxs)
-            nidxs += nvtxidxs
-            for vtxidx in vtxidxs:
-                idxBuf += struct.pack('<I', vtxidx)
-        for vertex in geom.vtx:
-            p = vertex.getPosition('world')
-            vtxBuf += struct.pack('<fff', p.x, p.y, p.z)
-                
-        meshBaseFileName = '{0}_{1:04}'.format(mainFileName, geomIdx)        
-        faceBufFileName = meshBaseFileName + '_faces.bin'
-        idxBufFileName  = meshBaseFileName + '_indexes.bin'
-        vtxBufFileName  = meshBaseFileName + '_vertices.bin'
-        faceBufAbsPath = os.path.join(mainFileDir, faceBufFileName)
-        idxBufAbsPath  = os.path.join(mainFileDir, idxBufFileName)
-        vtxBufAbsPath  = os.path.join(mainFileDir, vtxBufFileName)
-        with open(faceBufAbsPath, 'wb') as fd: fd.write(faceBuf)
-        with open(idxBufAbsPath,  'wb') as fd: fd.write(idxBuf)
-        with open(vtxBufAbsPath,  'wb') as fd: fd.write(vtxBuf)
-        
-        geomDict = {
-            'faces': {
-                'amount': len(geom.f),
-                'path':   os.path.join('./', faceBufFileName)
-            },
-            'indices': {
-                'amount': nidxs,
-                'path':   os.path.join('./', idxBufFileName)
-            },
-            'vertices': {
-                'amount': len(geom.vtx),
-                'path':   os.path.join('./', vtxBufFileName)
+    offset = 0
+    with open(bufPath, 'wb') as bufFd:
+        for geom in geomList:
+            print('Processing {}...'.format(geom))
+            faceBuf = ''
+            idxBuf = ''
+            vtxBuf = ''
+            nidxs = 0
+            for face in geom.f:
+                vtxidxs = face.getVertices()
+                nvtxidxs = len(vtxidxs)
+                faceBuf += struct.pack('<I', nvtxidxs)
+                nidxs += nvtxidxs
+                for vtxidx in vtxidxs:
+                    idxBuf += struct.pack('<I', vtxidx)
+            for vertex in geom.vtx:
+                p = vertex.getPosition('world')
+                vtxBuf += struct.pack('<fff', p.x, p.y, p.z)
+                    
+            bufFd.write(faceBuf)
+            bufFd.write(idxBuf)
+            bufFd.write(vtxBuf)
+            
+            faceBufSize = len(faceBuf)
+            idxBufSize = len(idxBuf)
+            vtxBufSize = len(vtxBuf)
+            
+            buffers = []
+            
+            buffers.append({
+                'offset': offset,
+                'size': faceBufSize,
+                'type': 'faces'
+            })
+            offset += faceBufSize
+            
+            buffers.append({
+                'offset': offset,
+                'size': idxBufSize,
+                'type': 'indices'
+            })
+            offset += idxBufSize
+            
+            buffers.append({
+                'offset': offset,
+                'size': vtxBufSize,
+                'type': 'vertices'
+            })
+            offset += vtxBufSize
+            
+            geomDict = {
+                'buffers': buffers
             }
-        }
-        mainFileGeoms.append(geomDict)
-        geomIdx += 1
+            mainFileGeoms.append(geomDict)
     
     mainFileDict['geometries'] = mainFileGeoms
     mainFileJson = json.dumps(mainFileDict, indent=2)
     with open(mainFilePath, 'w') as fd: fd.write(mainFileJson)
+    print('Done')
