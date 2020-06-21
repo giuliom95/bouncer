@@ -74,6 +74,7 @@ int main()
 	scene.load
 	(
 		"../scenes/cornellbox/cornellbox.json",
+		//"../scenes/cube/cube.json",
 		embree_device
 	);
 

@@ -42,40 +42,47 @@ def exportVSSD(path, camName):
             for vertex in geom.vtx:
                 p = vertex.getPosition('world')
                 vtxBuf += struct.pack('<fff', p.x, p.y, p.z)
+            
+            edges = geom.edges
+            creaseIdxBuf = ''
+            creaseValBuf = ''
+            creases = pmc.modeling.polyCrease(edges, q=True, v=0)
+            hasCreases = False
+            for e in range(0, len(edges)):
+                c = creases[e]
+                if c > 0:
+                    hasCreases = True
+                    vtxs = edges[e].connectedVertices()
+                    creaseIdxBuf += struct.pack('<I', vtxs[0].index())
+                    creaseIdxBuf += struct.pack('<I', vtxs[1].index())
+                    creaseValBuf += struct.pack('<f', c)
                     
-            bufFd.write(faceBuf)
-            bufFd.write(idxBuf)
-            bufFd.write(vtxBuf)
+            buffers = [
+                (faceBuf, 'faces'),
+                (idxBuf,  'indices'),
+                (vtxBuf,  'vertices')
+            ]
+            if hasCreases:
+                buffers += [
+                    (creaseIdxBuf, 'creaseindices'),
+                    (creaseValBuf, 'creasevalues')
+                ]
             
-            faceBufSize = len(faceBuf)
-            idxBufSize = len(idxBuf)
-            vtxBufSize = len(vtxBuf)
-            
-            buffers = []
-            
-            buffers.append({
-                'offset': offset,
-                'size': faceBufSize,
-                'type': 'faces'
-            })
-            offset += faceBufSize
-            
-            buffers.append({
-                'offset': offset,
-                'size': idxBufSize,
-                'type': 'indices'
-            })
-            offset += idxBufSize
-            
-            buffers.append({
-                'offset': offset,
-                'size': vtxBufSize,
-                'type': 'vertices'
-            })
-            offset += vtxBufSize
+            buffersList = []
+
+            for b in buffers:
+                print('Writing buffer {}'.format(b[1]))
+                bufFd.write(b[0])
+                s = len(b[0])
+                buffersList.append({
+                    'offset': offset,
+                    'size': s,
+                    'type': b[1] 
+                })
+                offset += s
             
             geomDict = {
-                'buffers': buffers
+                'buffers': buffersList
             }
             mainFileGeoms.append(geomDict)
     
