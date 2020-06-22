@@ -81,7 +81,12 @@ def exportVSSD(path, camName):
                 })
                 offset += s
             
+            smoothLevel = pmc.displaySmoothness(geom, q=True, po=0)[0]
+            isSmooth = smoothLevel > 1
+            print('Smooth level {}'.format(smoothLevel))
+
             geomDict = {
+                'smooth' : isSmooth,
                 'buffers': buffersList
             }
             mainFileGeoms.append(geomDict)
