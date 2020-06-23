@@ -85,9 +85,16 @@ def exportVSSD(path, camName):
             isSmooth = smoothLevel > 1
             print('Smooth level {}'.format(smoothLevel))
 
+            sg = geom.connections(t='shadingEngine')[0]
+            mat = sg.surfaceShader.connections()[0]
+            albedo = mat.color.get()
+            emittance = mat.incandescence.get()
+
             geomDict = {
-                'smooth' : isSmooth,
-                'buffers': buffersList
+                'smooth'    : isSmooth,
+                'buffers'   : buffersList,
+                'albedo'    : list(albedo),
+                'emittance' : list(emittance)
             }
             mainFileGeoms.append(geomDict)
     
