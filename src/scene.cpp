@@ -16,7 +16,6 @@ void load_buffer(
 	buffers_file.read((char*)embree_buf, buffer_size);
 }
 
-
 Camera load_camera(const nlohmann::json& json_camera)
 {
 	BOOST_LOG_TRIVIAL(info) << "Loading camera";
@@ -43,6 +42,23 @@ Camera load_camera(const nlohmann::json& json_camera)
 	};
 }
 
+Material load_material(const nlohmann::json& json_material)
+{
+	const nlohmann::json& json_albedo{json_material["albedo"]};
+	const nlohmann::json& json_emittance{json_material["emittance"]}; 
+	return {
+		{
+			json_albedo[0],
+			json_albedo[1],
+			json_albedo[2]
+		},
+		{
+			json_emittance[0],
+			json_emittance[1],
+			json_emittance[2]
+		}
+	};
+}
 
 Scene::~Scene()
 {
@@ -146,9 +162,7 @@ void Scene::load(
 		}
 
 		BOOST_LOG_TRIVIAL(info) << "Setting subdivision level";
-
 		const bool is_smooth = json_geom["smooth"];
-
 		if(is_smooth)
 		{
 			rtcSetGeometryTessellationRate(embree_geom, 4);
@@ -169,6 +183,9 @@ void Scene::load(
 				RTC_SUBDIVISION_MODE_PIN_ALL
 			);
 		}
+
+		const Material mat = load_material(json_geom["material"]);
+		materials.push_back(mat);
 
 		BOOST_LOG_TRIVIAL(info) << "Committing geometry";
 		rtcCommitGeometry(embree_geom);

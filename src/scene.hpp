@@ -3,6 +3,7 @@
 
 #include "math.hpp"
 #include "camera.hpp"
+#include "material.hpp"
 #include "nlohmann/json.hpp"
 
 #include <boost/log/trivial.hpp>
@@ -15,9 +16,10 @@
 class Scene
 {
 public:
-	RTCScene	embree_scene;
-	Camera		camera;
-	
+	RTCScene				embree_scene;
+	Camera					camera;
+	std::vector<Material> 	materials;
+
 	~Scene();
 
 	void load

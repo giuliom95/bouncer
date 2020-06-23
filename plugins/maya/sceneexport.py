@@ -93,8 +93,10 @@ def exportVSSD(path, camName):
             geomDict = {
                 'smooth'    : isSmooth,
                 'buffers'   : buffersList,
-                'albedo'    : list(albedo),
-                'emittance' : list(emittance)
+                'material'  : {
+                    'albedo'    : list(albedo),
+                    'emittance' : list(emittance)
+                }
             }
             mainFileGeoms.append(geomDict)
     

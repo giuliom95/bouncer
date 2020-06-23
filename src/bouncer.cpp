@@ -55,10 +55,12 @@ void rt(OIIO::ImageBuf& image, Scene& scene)
 			rtcInterpolate(&ia);
 			Vec3f n = normalize(cross(dpdu, dpdv));
 			// Debug lambertian shading
-			float v = 0.8*max(dot(n, normalize({0.5,1.2,-.8})), 0) + 0.2f;
-			it[0] = v; //n[0];
-			it[1] = v; //n[1];
-			it[2] = v; //n[2];
+			const Material mat = scene.materials[rh.hit.geomID];
+			const Vec3f v = 
+				(max(dot(n, normalize({0.5,1.2,-.8})), 0) + .2f) * mat.albedo;
+			it[0] = v[0];
+			it[1] = v[1];
+			it[2] = v[2];
 		}
 	}
 }
