@@ -10,6 +10,7 @@
 #include <boost/log/trivial.hpp>
 
 #include <random>
+#include <thread>
 
 
 Vec2f film_space(
@@ -38,8 +39,35 @@ void rt(OIIO::ImageBuf& image, Scene& scene)
 	//  should be safe. These usually fit in a couple of floats.
 	const Vec2f image_xybegin{(float)image.xbegin(), (float)image.ybegin()};
 	const Vec2f image_xyend  {(float)image.xend(),   (float)image.yend()};
+	const Vec2f image_size = image_xyend - image_xybegin;
 
-	for(OIIO::ImageBuf::Iterator<float> it(image); !it.done(); ++it)
+	const unsigned int nthreads = std::thread::hardware_concurrency();
+	std::vector<OIIO::ROI> rois(nthreads);
+	const Vec2f roi_size
+	{
+		image_size[0] / nthreads,
+		image_size[1]
+	};
+	for(int t = 0; t < nthreads; ++t)
+	{
+		const Vec2f begin{image_xybegin[0] + t*roi_size[0], 0};
+		const Vec2f end  {begin + roi_size};
+		rois[t] = OIIO::ROI(begin[0], end[0], begin[1], end[1]);
+	}
+
+	for(int t = 0; t < nthreads; ++t)
+	{
+		for(OIIO::ImageBuf::Iterator<float> it(image, rois[t]); !it.done(); ++it)
+		{
+			const float m = 1.0f / nthreads;
+			const float v = m*(t+1);
+			it[0] = v;
+			it[1] = v;
+			it[2] = v;
+		}	
+	}
+
+	/*for(OIIO::ImageBuf::Iterator<float> it(image); !it.done(); ++it)
 	{
 		const int pixel_samples = 8;
 		Vec3f c{};
@@ -85,7 +113,7 @@ void rt(OIIO::ImageBuf& image, Scene& scene)
 		it[0] = c[0];
 		it[1] = c[1];
 		it[2] = c[2];
-	}
+	}*/
 }
 
 int main()

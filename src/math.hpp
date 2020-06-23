@@ -25,11 +25,12 @@ using Vec3f = std::array<float, 3>;
 inline const Vec2f operator*	(const float f, const Vec2f v) { return {f*v[0], f*v[1]}; }
 inline const Vec2f operator*	(const Vec2f v, const float f) { return {f*v[0], f*v[1]}; }
 inline const Vec2f operator+	(const Vec2f a, const Vec2f b) { return {a[0]+b[0], a[1]+b[1]}; }
-inline const Vec2f operator+	(const Vec2f a, const float b) { return {a[0]+b, a[1]+b}; }
+inline const Vec2f operator+	(const Vec2f v, const float f) { return {v[0]+f, v[1]+f}; }
 inline const Vec2f operator-	(const Vec2f a, const Vec2f b) { return {a[0]-b[0], a[1]-b[1]}; }
-inline const Vec2f operator-	(const Vec2f a, const float b) { return {a[0]-b, a[1]-b}; }
+inline const Vec2f operator-	(const Vec2f v, const float f) { return {v[0]-f, v[1]-f}; }
 inline const Vec2f operator*	(const Vec2f a, const Vec2f b) { return {a[0]*b[0], a[1]*b[1]}; }
 inline const Vec2f operator/	(const Vec2f a, const Vec2f b) { return {a[0]/b[0], a[1]/b[1]}; }
+inline const Vec2f operator/	(const Vec2f v, const float f) { return {v[0]/f, v[1]/f}; }
 
 inline std::ostream& operator<<(std::ostream& os, const Vec2f& v) {
 	return os << "[" << v[0] << ", " << v[1] << "]";
