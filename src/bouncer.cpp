@@ -9,13 +9,21 @@
 
 #include <boost/log/trivial.hpp>
 
+#include <random>
+
+
 void rt(OIIO::ImageBuf& image, Scene& scene)
 {
 	RTCIntersectContext intersect_context;
 	rtcInitIntersectContext(&intersect_context);
 
+	std::mt19937 rand;
+	std::uniform_real_distribution<float> dis(0,1);
+
+
 	for(OIIO::ImageBuf::Iterator<float> it(image); !it.done(); ++it)
 	{
+		/*
 		const Vec2f ij
 		{
 			2.0f*(
@@ -62,6 +70,11 @@ void rt(OIIO::ImageBuf& image, Scene& scene)
 			it[1] = v[1];
 			it[2] = v[2];
 		}
+		*/
+		float r = dis(rand);
+		it[0] = r;
+		it[1] = r;
+		it[2] = r;
 	}
 }
 
