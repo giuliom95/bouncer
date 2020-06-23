@@ -17,6 +17,8 @@ public:
 		const Vec3f look_direction,
 		const Vec3f up_vector
 	);
+
+	// Ray from film coords
 	RTCRay generate_ray (const Vec2f ij);
 
 private:

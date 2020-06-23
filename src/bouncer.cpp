@@ -41,42 +41,50 @@ void rt(OIIO::ImageBuf& image, Scene& scene)
 
 	for(OIIO::ImageBuf::Iterator<float> it(image); !it.done(); ++it)
 	{
-		Vec2f uv = film_space(
-			{(float)it.x(), (float)it.y()},
-			image_xybegin, image_xyend,
-			{1,1}
-		);
-		
-		RTCRayHit rh{scene.camera.generate_ray(uv), {}};
-		rh.hit.geomID = RTC_INVALID_GEOMETRY_ID;
-
-		rtcIntersect1(scene.embree_scene, &intersect_context, &rh);
-
-		if(rh.hit.geomID != RTC_INVALID_GEOMETRY_ID)
+		const int pixel_samples = 8;
+		Vec3f c{};
+		for(int s = 0; s < pixel_samples; ++s)
 		{
-			Vec3f dpdu, dpdv;
-			RTCInterpolateArguments ia;
-			ia.geometry		= rtcGetGeometry(scene.embree_scene, rh.hit.geomID);
-			ia.primID		= rh.hit.primID;
-			ia.u			= rh.hit.u;
-			ia.v			= rh.hit.v;
-			ia.bufferType	= RTC_BUFFER_TYPE_VERTEX;
-			ia.bufferSlot	= 0;
-			ia.P			= nullptr;
-			ia.dPdu			= (float*)(&dpdu);
-			ia.dPdv			= (float*)(&dpdv);
-			ia.ddPdudu		= nullptr;
-			ia.valueCount	= 3;
-			rtcInterpolate(&ia);
-			Vec3f n = normalize(cross(dpdu, dpdv));
-			// Debug lambertian shading
-			const Material mat = scene.materials[rh.hit.geomID];
-			const Vec3f v = 
-				(max(dot(n, normalize({0.5,1.2,-.8})), 0) + .2f) * mat.albedo;
-			it[0] = v[0];
-			it[1] = v[1];
-			it[2] = v[2];
+			const Vec2f pixel_ij{dis(rand), dis(rand)};
+			Vec2f uv = film_space(
+				{(float)it.x(), (float)it.y()},
+				image_xybegin, image_xyend,
+				pixel_ij
+			);
+			
+			RTCRayHit rh{scene.camera.generate_ray(uv), {}};
+			rh.hit.geomID = RTC_INVALID_GEOMETRY_ID;
+
+			rtcIntersect1(scene.embree_scene, &intersect_context, &rh);
+
+			if(rh.hit.geomID != RTC_INVALID_GEOMETRY_ID)
+			{
+				Vec3f dpdu, dpdv;
+				RTCInterpolateArguments ia;
+				ia.geometry		= rtcGetGeometry(scene.embree_scene, rh.hit.geomID);
+				ia.primID		= rh.hit.primID;
+				ia.u			= rh.hit.u;
+				ia.v			= rh.hit.v;
+				ia.bufferType	= RTC_BUFFER_TYPE_VERTEX;
+				ia.bufferSlot	= 0;
+				ia.P			= nullptr;
+				ia.dPdu			= (float*)(&dpdu);
+				ia.dPdv			= (float*)(&dpdv);
+				ia.ddPdudu		= nullptr;
+				ia.valueCount	= 3;
+				rtcInterpolate(&ia);
+				Vec3f n = normalize(cross(dpdu, dpdv));
+				// Debug lambertian shading
+				const Material mat = scene.materials[rh.hit.geomID];
+				const Vec3f v = 
+					(max(dot(n, normalize({0.5,1.2,-.8})), 0) + .2f) * mat.albedo;
+				c = c + v;
+			}
 		}
+		c = c / pixel_samples;
+		it[0] = c[0];
+		it[1] = c[1];
+		it[2] = c[2];
 	}
 }
 
