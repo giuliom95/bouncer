@@ -12,6 +12,20 @@
 #include <random>
 
 
+Vec2f film_space(
+	const Vec2f xy,
+	const Vec2f xy_begin,
+	const Vec2f xy_end,
+	const Vec2f pixel_space
+){
+	const Vec2f image_size = xy_end - xy_begin;
+	const Vec2f ij = 2.0f*(
+		(xy - xy_begin) / (image_size - 1)
+	) - 1.0f;
+	const Vec2f flipper{1,-1};
+	return flipper*ij + 2*(pixel_space / image_size);
+}
+
 void rt(OIIO::ImageBuf& image, Scene& scene)
 {
 	RTCIntersectContext intersect_context;
@@ -20,27 +34,20 @@ void rt(OIIO::ImageBuf& image, Scene& scene)
 	std::mt19937 rand;
 	std::uniform_real_distribution<float> dis(0,1);
 
+	// When handling pixel coordinates all casts from int to float 
+	//  should be safe. These usually fit in a couple of floats.
+	const Vec2f image_xybegin{(float)image.xbegin(), (float)image.ybegin()};
+	const Vec2f image_xyend  {(float)image.xend(),   (float)image.yend()};
 
 	for(OIIO::ImageBuf::Iterator<float> it(image); !it.done(); ++it)
 	{
-		/*
-		const Vec2f ij
-		{
-			2.0f*(
-				(float)(it.x() - image.xbegin()) / 
-				(float)(image.xend() - image.xbegin() - 1)
-			) - 1.0f,
-			-2.0f*(
-				(float)(it.y() - image.ybegin()) / 
-				(float)(image.yend() - image.ybegin() - 1)
-			) + 1.0f
-		};
+		Vec2f uv = film_space(
+			{(float)it.x(), (float)it.y()},
+			image_xybegin, image_xyend,
+			{1,1}
+		);
 		
-		RTCRayHit rh
-		{
-			scene.camera.generate_ray(ij),
-			{}
-		};
+		RTCRayHit rh{scene.camera.generate_ray(uv), {}};
 		rh.hit.geomID = RTC_INVALID_GEOMETRY_ID;
 
 		rtcIntersect1(scene.embree_scene, &intersect_context, &rh);
@@ -70,11 +77,6 @@ void rt(OIIO::ImageBuf& image, Scene& scene)
 			it[1] = v[1];
 			it[2] = v[2];
 		}
-		*/
-		float r = dis(rand);
-		it[0] = r;
-		it[1] = r;
-		it[2] = r;
 	}
 }
 
