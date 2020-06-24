@@ -60,13 +60,32 @@ Material load_material(const nlohmann::json& json_material)
 	};
 }
 
+Image load_render_info(const nlohmann::json& json_render_info)
+{
+	return Image(
+		{
+			json_render_info["width"],
+			json_render_info["height"],
+			3, OIIO::TypeDesc::FLOAT
+		}
+	);
+}
+
+Image::Image(const OIIO::ImageSpec& spec) :
+OIIO::ImageBuf(spec)
+{
+	begin = Vec2f({(float)xbegin(), (float)ybegin()});
+	end   = Vec2f({(float)xend(),   (float)yend()});
+	size  = end - begin;
+}
+
 Scene::~Scene()
 {
 	BOOST_LOG_TRIVIAL(info) << "Releasing scene";
 	rtcReleaseScene(embree_scene);
 }
 
-void Scene::load(
+Scene::Scene(
 	const boost::filesystem::path& json_path, 
 	RTCDevice& embree_device
 ) {
@@ -94,6 +113,8 @@ void Scene::load(
 		throw std::runtime_error("Could not open scene buffers file");
 	}
 
+	out_image = load_render_info(json_data["render"]);
+	
 	camera = load_camera(json_data["camera"]);
 
 	for(const nlohmann::json json_geom : json_data["geometries"]) 
@@ -165,7 +186,7 @@ void Scene::load(
 		const bool is_smooth = json_geom["smooth"];
 		if(is_smooth)
 		{
-			rtcSetGeometryTessellationRate(embree_geom, 4);
+			rtcSetGeometryTessellationRate(embree_geom, 6);
 
 			rtcSetGeometrySubdivisionMode
 			(
@@ -197,4 +218,15 @@ void Scene::load(
 
 	BOOST_LOG_TRIVIAL(info) << "Committing scene";
 	rtcCommitScene(embree_scene);
+}
+
+Vec2f Scene::film_space(
+	const Vec2f xy,
+	const Vec2f pixel_space
+){
+	const Vec2f ij = 2.0f*(
+		(xy - out_image.begin) / (out_image.size - 1)
+	) - 1.0f;
+	const Vec2f flipper{1,-1};
+	return flipper*ij + 2*(pixel_space / out_image.size);
 }

@@ -10,11 +10,19 @@ def exportVSSD(path, camName):
     mainFileStem = os.path.basename(path)[:-5]
     mainFileDir  = os.path.dirname(path)
     
+    resolution = pmc.ls('defaultResolution')[0]
+    renderWidth = resolution.width.get()
+    renderHeight = resolution.height.get()
+    mainFileDict['render'] = {
+        'width' : renderWidth,
+        'height': renderHeight
+    }
+
     cam = pmc.ls(camName)[0].getShape()
     mainFileDict['camera'] = {
         'focal' : cam.getFocalLength(),
         'gate'  : cam.getVerticalFilmAperture(),
-        'aspect': cam.getAspectRatio(),
+        'aspect': renderWidth / renderHeight,
         'eye'   : list(cam.getEyePoint(space='world')),
         'up'    : list(cam.upDirection(space='world')),
         'look'  : list(cam.viewDirection(space='world'))
