@@ -21,6 +21,16 @@ private:
 	std::uniform_real_distribution<float> 	dist;
 };
 
+Vec3f hemisphere_sampling(Rand& rand)
+{
+	const float xi_1 = rand();
+	const float xi_2 = rand();
+	const float a = (1-xi_1);
+	const float b = sqrt(1 - a*a);
+	const float c = 2*PI*xi_2;
+	return {cos(c)*b, sin(c)*b, a};
+}
+
 void render_roi(Scene& scene, const OIIO::ROI roi)
 {
 	RTCIntersectContext intersect_context;
