@@ -21,14 +21,112 @@ private:
 	std::uniform_real_distribution<float> 	dist;
 };
 
-Vec3f hemisphere_sampling(Rand& rand)
+RTCRay ray(const Vec3f& o, const Vec3f& d)
 {
-	const float xi_1 = rand();
-	const float xi_2 = rand();
-	const float a = (1-xi_1);
-	const float b = sqrt(1 - a*a);
-	const float c = 2*PI*xi_2;
-	return {cos(c)*b, sin(c)*b, a};
+	RTCRay r;
+	r.tnear = 0;
+	r.tfar  = INFINITY;
+	r.time  = 0;
+	r.mask  = 0;
+	r.id    = 0;
+	r.flags = 0;
+
+	r.org_x = o[0];
+	r.org_y = o[1];
+	r.org_z = o[2];
+
+	r.dir_x = d[0];
+	r.dir_y = d[1];
+	r.dir_z = d[2];
+
+	return r;
+}
+
+Vec3f hemisphere_sampling(Rand& rand, const Vec3f& n)
+{
+	const auto r0 = rand();
+	const auto r1 = rand();
+	const auto z = std::sqrt(r0);
+    const auto r = std::sqrt(1 - z * z);
+    const auto phi = 2 * PI * r1;
+
+	const auto m = refFromVec(n);
+	return transformVector(m, {z, r * std::cos(phi), r * std::sin(phi)});
+}
+
+bool valid(const Vec3f& li)
+{
+	return
+	!(
+		li[0] == -1 &&
+		li[1] == -1 &&
+		li[2] == -1
+	);
+}
+
+Vec3f estimate_li
+(
+	Scene& scene,
+	RTCRay r, 
+	RTCIntersectContext* ic, 
+	int bounces,
+	Rand& rand
+) {
+	RTCRayHit rh{r, {}};
+	rh.hit.geomID = RTC_INVALID_GEOMETRY_ID;
+
+	rtcIntersect1(scene.embree_scene, ic, &rh);
+
+	if(rh.hit.geomID != RTC_INVALID_GEOMETRY_ID)
+	{
+		RTCGeometry geom = rtcGetGeometry
+		(
+			scene.embree_scene, rh.hit.geomID
+		);
+		Vec3f p, dpdu, dpdv;
+		RTCInterpolateArguments ia;
+		ia.geometry		= geom;
+		ia.primID		= rh.hit.primID;
+		ia.u			= rh.hit.u;
+		ia.v			= rh.hit.v;
+		ia.bufferType	= RTC_BUFFER_TYPE_VERTEX;
+		ia.bufferSlot	= 0;
+		ia.P			= (float*)(&p);
+		ia.dPdu			= (float*)(&dpdu);
+		ia.dPdv			= (float*)(&dpdv);
+		ia.ddPdudu		= nullptr;
+		ia.valueCount	= 3;
+		rtcInterpolate(&ia);
+		const Vec3f n  = normalize(cross(dpdu, dpdv));
+		const Vec3f t  = normalize(dpdu);
+		const Vec3f bt = cross(t, n);
+		const Mat4f m{t, n, bt, {}};
+
+		const Material mat = scene.materials[rh.hit.geomID];
+		const Vec3f kd = mat.albedo;
+		const Vec3f ke = mat.emittance;
+
+		if(bounces == 0)
+		{
+			return ke;
+		}
+		else
+		{
+			const Vec3f new_d = hemisphere_sampling(rand, n);
+			RTCRay new_r = ray(p, new_d);
+			const Vec3f li = estimate_li(scene, new_r, ic, bounces-1, rand);
+			if(!valid(li))
+			{
+				return ke;
+			}
+			else 
+			{
+				const float c = abs(dot(n, new_d));
+				return ke + (c*kd*li);
+			}
+		}
+	}
+	return {-1, -1, -1};
 }
 
 void render_roi(Scene& scene, const OIIO::ROI roi)
@@ -38,7 +136,7 @@ void render_roi(Scene& scene, const OIIO::ROI roi)
 	
 	Rand rand;
 	
-	const int pixel_samples = 8;
+	const int pixel_samples = 32;
 	
 	for
 	(
@@ -51,39 +149,18 @@ void render_roi(Scene& scene, const OIIO::ROI roi)
 			const Vec2f pixel_ij{rand(),        rand()};
 			const Vec2f xy      {(float)it.x(), (float)it.y()}; 
 			const Vec2f uv = scene.film_space(xy, pixel_ij);
-			
-			RTCRayHit rh{scene.camera.generate_ray(uv), {}};
-			rh.hit.geomID = RTC_INVALID_GEOMETRY_ID;
 
-			rtcIntersect1(scene.embree_scene, &intersect_context, &rh);
+			const Vec3f li = estimate_li
+			(
+				scene,
+				scene.camera.generate_ray(uv),
+				&intersect_context,
+				4, rand
+			);
 
-			if(rh.hit.geomID != RTC_INVALID_GEOMETRY_ID)
+			if(valid(li))
 			{
-				RTCGeometry geom = rtcGetGeometry
-				(
-					scene.embree_scene, rh.hit.geomID
-				);
-				Vec3f dpdu, dpdv;
-				RTCInterpolateArguments ia;
-				ia.geometry		= geom;
-				ia.primID		= rh.hit.primID;
-				ia.u			= rh.hit.u;
-				ia.v			= rh.hit.v;
-				ia.bufferType	= RTC_BUFFER_TYPE_VERTEX;
-				ia.bufferSlot	= 0;
-				ia.P			= nullptr;
-				ia.dPdu			= (float*)(&dpdu);
-				ia.dPdv			= (float*)(&dpdv);
-				ia.ddPdudu		= nullptr;
-				ia.valueCount	= 3;
-				rtcInterpolate(&ia);
-				Vec3f n = normalize(cross(dpdu, dpdv));
-				// Debug lambertian shading
-				const Material mat = scene.materials[rh.hit.geomID];
-				const Vec3f v = 
-					(max(dot(n, normalize({0.5,1.2,-.8})), 0) + .2f) * 
-					mat.albedo;
-				c = c + v;
+				c = c + li;
 			}
 		}
 		c = c / pixel_samples;
@@ -102,7 +179,7 @@ void rt(Scene& scene)
 		scene.out_image.size[0] / nthreads,
 		scene.out_image.size[1]
 	};
-	for(int ti = 0; ti < nthreads; ++ti)
+	for(unsigned ti = 0; ti < nthreads; ++ti)
 	{
 		const Vec2f begin{scene.out_image.begin[0] + ti*roi_size[0], 0};
 		const Vec2f end  {begin + roi_size};
@@ -114,7 +191,7 @@ void rt(Scene& scene)
 		);
 	}
 
-	for(int ti = 0; ti < nthreads; ++ti) threads[ti].join();
+	for(unsigned ti = 0; ti < nthreads; ++ti) threads[ti].join();
 }
 
 int main()
