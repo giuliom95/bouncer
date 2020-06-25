@@ -9,12 +9,24 @@
 #include <random>
 #include <thread>
 
+class Rand
+{
+public:
+	float operator()()
+	{
+		return dist(mt);
+	}
+private:
+	std::mt19937 							mt;
+	std::uniform_real_distribution<float> 	dist;
+};
+
 void render_roi(Scene& scene, const OIIO::ROI roi)
 {
 	RTCIntersectContext intersect_context;
 	rtcInitIntersectContext(&intersect_context);
-	std::mt19937 rand;
-	std::uniform_real_distribution<float> dis(0,1);
+	
+	Rand rand;
 	
 	const int pixel_samples = 8;
 	
@@ -26,7 +38,7 @@ void render_roi(Scene& scene, const OIIO::ROI roi)
 		Vec3f c{};
 		for(int s = 0; s < pixel_samples; ++s)
 		{
-			const Vec2f pixel_ij{dis(rand),     dis(rand)};
+			const Vec2f pixel_ij{rand(),        rand()};
 			const Vec2f xy      {(float)it.x(), (float)it.y()}; 
 			const Vec2f uv = scene.film_space(xy, pixel_ij);
 			
