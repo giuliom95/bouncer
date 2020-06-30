@@ -118,7 +118,7 @@ Vec3f estimate_li
 		else
 		{
 			const Vec3f new_d = hemisphere_sampling(rand, n);
-			RTCRay new_r = ray(p, new_d);
+			RTCRay new_r = ray(p + 0.001f*n, new_d);
 			const Vec3f li = estimate_li
 			(
 				scene, new_r, 
@@ -146,7 +146,7 @@ void render_roi(Scene& scene, const OIIO::ROI roi, RenderData& rd)
 	
 	Rand rand;
 	
-	const unsigned pixel_samples = 1;
+	const unsigned pixel_samples = 128;
 	const unsigned bounces = 4;
 	const unsigned npaths = pixel_samples * roi.npixels();
 	PathsGroup paths(npaths);
