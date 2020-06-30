@@ -9,6 +9,8 @@
 #include <random>
 #include <thread>
 
+#include "gatherer.hpp"
+
 class Rand
 {
 public:
@@ -70,7 +72,8 @@ Vec3f estimate_li
 	RTCRay r, 
 	RTCIntersectContext* ic, 
 	int bounces,
-	Rand& rand
+	Rand& rand,
+	Path& path
 ) {
 	RTCRayHit rh{r, {}};
 	rh.hit.geomID = RTC_INVALID_GEOMETRY_ID;
@@ -102,6 +105,8 @@ Vec3f estimate_li
 		const Vec3f bt = cross(t, n);
 		const Mat4f m{t, n, bt, {}};
 
+		path.add_point(p);
+
 		const Material mat = scene.materials[rh.hit.geomID];
 		const Vec3f kd = mat.albedo;
 		const Vec3f ke = mat.emittance;
@@ -114,7 +119,12 @@ Vec3f estimate_li
 		{
 			const Vec3f new_d = hemisphere_sampling(rand, n);
 			RTCRay new_r = ray(p, new_d);
-			const Vec3f li = estimate_li(scene, new_r, ic, bounces-1, rand);
+			const Vec3f li = estimate_li
+			(
+				scene, new_r, 
+				ic, bounces-1, 
+				rand, path
+			);
 			if(!valid(li))
 			{
 				return ke;
@@ -129,33 +139,40 @@ Vec3f estimate_li
 	return {-1, -1, -1};
 }
 
-void render_roi(Scene& scene, const OIIO::ROI roi)
+void render_roi(Scene& scene, const OIIO::ROI roi, RenderData& rd)
 {
 	RTCIntersectContext intersect_context;
 	rtcInitIntersectContext(&intersect_context);
 	
 	Rand rand;
 	
-	const int pixel_samples = 32;
-	
+	const unsigned pixel_samples = 1;
+	const unsigned bounces = 4;
+	const unsigned npaths = pixel_samples * roi.npixels();
+	PathsGroup paths(npaths);
+
+	unsigned p = 0;
 	for
 	(
 		OIIO::ImageBuf::Iterator<float> it(scene.out_image, roi); 
 		!it.done(); ++it
 	) {
+		const Vec2f xy  {(float)it.x(), (float)it.y()}; 
 		Vec3f c{};
-		for(int s = 0; s < pixel_samples; ++s)
+		paths[p] = Path();
+		for(unsigned s = 0; s < pixel_samples; ++s)
 		{
 			const Vec2f pixel_ij{rand(),        rand()};
-			const Vec2f xy      {(float)it.x(), (float)it.y()}; 
 			const Vec2f uv = scene.film_space(xy, pixel_ij);
+			RTCRay r = scene.camera.generate_ray(uv);
+
+			paths[p].add_point({r.org_x, r.org_y, r.org_z});
 
 			const Vec3f li = estimate_li
 			(
-				scene,
-				scene.camera.generate_ray(uv),
+				scene, r,
 				&intersect_context,
-				4, rand
+				bounces, rand, paths[p]
 			);
 
 			if(valid(li))
@@ -167,13 +184,17 @@ void render_roi(Scene& scene, const OIIO::ROI roi)
 		it[0] = c[0];
 		it[1] = c[1];
 		it[2] = c[2];
+		++p;
 	}
+
+	rd.pathgroups.push_back(paths);
 }
 
 void rt(Scene& scene)
 {
-	const unsigned int nthreads = std::thread::hardware_concurrency();
+	const unsigned nthreads = 1;//std::thread::hardware_concurrency();
 	std::vector<std::thread> threads(nthreads);
+	RenderData renderdata("./renderdata.bin");
 	const Vec2f roi_size
 	{
 		scene.out_image.size[0] / nthreads,
@@ -187,11 +208,13 @@ void rt(Scene& scene)
 		threads[ti] = std::thread
 		(
 			&render_roi, 
-			std::ref(scene), roi
+			std::ref(scene), roi,
+			std::ref(renderdata)
 		);
 	}
 
 	for(unsigned ti = 0; ti < nthreads; ++ti) threads[ti].join();
+	renderdata.disk_store_all();
 }
 
 int main()
