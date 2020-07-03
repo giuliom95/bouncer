@@ -1,27 +1,4 @@
-#include "scene.hpp"
-
-#include <xmmintrin.h>
-#include <pmmintrin.h>
-#include <embree3/rtcore.h>
-
-#include <boost/log/trivial.hpp>
-
-#include <random>
-#include <thread>
-
-#include "gatherer.hpp"
-
-class Rand
-{
-public:
-	float operator()()
-	{
-		return dist(mt);
-	}
-private:
-	std::mt19937 							mt;
-	std::uniform_real_distribution<float> 	dist;
-};
+#include "bouncer.hpp"
 
 RTCRay ray(const Vec3f& o, const Vec3f& d)
 {
@@ -66,14 +43,108 @@ bool valid(const Vec3f& li)
 	);
 }
 
-Vec3f estimate_li
+RTCDevice initialize_embree_device()
+{
+	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+	return rtcNewDevice("verbose=3");
+}
+
+Bouncer::Bouncer(const boost::filesystem::path& scenepath)
+	: nthreads(std::thread::hardware_concurrency())
+	, embree_device(initialize_embree_device()) 
+	, scene(scenepath, embree_device)
+	, renderdata("./renderdata.bin")
+{}
+
+Bouncer::~Bouncer()
+{
+	rtcReleaseDevice(embree_device);
+}
+
+void Bouncer::render()
+{
+	std::vector<std::thread> threads(nthreads);
+	const Vec2f roi_size
+	{
+		scene.out_image.size[0] / nthreads,
+		scene.out_image.size[1]
+	};
+	for(unsigned ti = 0; ti < nthreads; ++ti)
+	{
+		const Vec2f begin{scene.out_image.begin[0] + ti*roi_size[0], 0};
+		const Vec2f end  {begin + roi_size};
+		OIIO::ROI roi(begin[0], end[0], begin[1], end[1]);
+		threads[ti] = std::thread
+		(
+			&Bouncer::render_roi, 
+			this, roi
+		);
+	}
+
+	for(unsigned ti = 0; ti < nthreads; ++ti) threads[ti].join();
+	renderdata.disk_store_all();
+}
+
+void Bouncer::writeimage(const boost::filesystem::path& imagepath)
+{
+	scene.out_image.write(imagepath.string());
+}
+
+void Bouncer::render_roi(const OIIO::ROI roi)
+{
+	RTCIntersectContext intersect_context;
+	rtcInitIntersectContext(&intersect_context);
+	
+	Rand rand;
+	
+	const unsigned pixel_samples = 128;
+	const unsigned bounces = 4;
+	//const unsigned npaths = pixel_samples * roi.npixels();
+	//PathsGroup paths(npaths);
+
+	//unsigned p = 0;
+	for
+	(
+		OIIO::ImageBuf::Iterator<float> it(scene.out_image, roi); 
+		!it.done(); ++it
+	) {
+		const Vec2f xy  {(float)it.x(), (float)it.y()}; 
+		Vec3f c{};
+		Path p = Path();
+		for(unsigned s = 0; s < pixel_samples; ++s)
+		{
+			const Vec2f pixel_ij{rand(),        rand()};
+			const Vec2f uv = scene.film_space(xy, pixel_ij);
+			RTCRay r = scene.camera.generate_ray(uv);
+
+			//paths[p].add_point({r.org_x, r.org_y, r.org_z});
+
+			const Vec3f li = estimate_li
+				(r, &intersect_context, bounces, p, rand);
+
+			if(valid(li))
+			{
+				c = c + li;
+			}
+		}
+		c = c / pixel_samples;
+		it[0] = c[0];
+		it[1] = c[1];
+		it[2] = c[2];
+		//++p;
+	}
+
+	//rd.pathgroups.push_back(paths);
+}
+
+Vec3f Bouncer::estimate_li
 (
-	Scene& scene,
 	RTCRay r, 
 	RTCIntersectContext* ic, 
 	int bounces,
-	Rand& rand,
-	Path& path
+	Path& path,
+	Rand& rand
 ) {
 	RTCRayHit rh{r, {}};
 	rh.hit.geomID = RTC_INVALID_GEOMETRY_ID;
@@ -105,7 +176,7 @@ Vec3f estimate_li
 		const Vec3f bt = cross(t, n);
 		const Mat4f m{t, n, bt, {}};
 
-		path.add_point(p);
+		//path.add_point(p);
 
 		const Material mat = scene.materials[rh.hit.geomID];
 		const Vec3f kd = mat.albedo;
@@ -119,12 +190,8 @@ Vec3f estimate_li
 		{
 			const Vec3f new_d = hemisphere_sampling(rand, n);
 			RTCRay new_r = ray(p + 0.001f*n, new_d);
-			const Vec3f li = estimate_li
-			(
-				scene, new_r, 
-				ic, bounces-1, 
-				rand, path
-			);
+			const Vec3f li = estimate_li(new_r, ic, bounces-1, path, rand);
+			
 			if(!valid(li))
 			{
 				return ke;
@@ -139,98 +206,9 @@ Vec3f estimate_li
 	return {-1, -1, -1};
 }
 
-void render_roi(Scene& scene, const OIIO::ROI roi, RenderData& rd)
-{
-	RTCIntersectContext intersect_context;
-	rtcInitIntersectContext(&intersect_context);
-	
-	Rand rand;
-	
-	const unsigned pixel_samples = 128;
-	const unsigned bounces = 4;
-	const unsigned npaths = pixel_samples * roi.npixels();
-	PathsGroup paths(npaths);
-
-	unsigned p = 0;
-	for
-	(
-		OIIO::ImageBuf::Iterator<float> it(scene.out_image, roi); 
-		!it.done(); ++it
-	) {
-		const Vec2f xy  {(float)it.x(), (float)it.y()}; 
-		Vec3f c{};
-		paths[p] = Path();
-		for(unsigned s = 0; s < pixel_samples; ++s)
-		{
-			const Vec2f pixel_ij{rand(),        rand()};
-			const Vec2f uv = scene.film_space(xy, pixel_ij);
-			RTCRay r = scene.camera.generate_ray(uv);
-
-			paths[p].add_point({r.org_x, r.org_y, r.org_z});
-
-			const Vec3f li = estimate_li
-			(
-				scene, r,
-				&intersect_context,
-				bounces, rand, paths[p]
-			);
-
-			if(valid(li))
-			{
-				c = c + li;
-			}
-		}
-		c = c / pixel_samples;
-		it[0] = c[0];
-		it[1] = c[1];
-		it[2] = c[2];
-		++p;
-	}
-
-	rd.pathgroups.push_back(paths);
-}
-
-void rt(Scene& scene)
-{
-	const unsigned nthreads = 1;//std::thread::hardware_concurrency();
-	std::vector<std::thread> threads(nthreads);
-	RenderData renderdata("./renderdata.bin");
-	const Vec2f roi_size
-	{
-		scene.out_image.size[0] / nthreads,
-		scene.out_image.size[1]
-	};
-	for(unsigned ti = 0; ti < nthreads; ++ti)
-	{
-		const Vec2f begin{scene.out_image.begin[0] + ti*roi_size[0], 0};
-		const Vec2f end  {begin + roi_size};
-		OIIO::ROI roi(begin[0], end[0], begin[1], end[1]);
-		threads[ti] = std::thread
-		(
-			&render_roi, 
-			std::ref(scene), roi,
-			std::ref(renderdata)
-		);
-	}
-
-	for(unsigned ti = 0; ti < nthreads; ++ti) threads[ti].join();
-	renderdata.disk_store_all();
-}
-
 int main()
 {
-	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
-	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
-
-	RTCDevice embree_device = rtcNewDevice("verbose=3");
-
-	Scene scene(
-		"../scenes/cornellbox/cornellbox.json",
-		//"../scenes/cube/cube.json",
-		embree_device
-	);
-	rt(scene);
-	scene.out_image.write("test.exr");
-
-	rtcReleaseDevice(embree_device);
+	Bouncer b("../scenes/cornellbox/cornellbox.json");
+	b.render();
+	b.writeimage("test.exr");
 }
