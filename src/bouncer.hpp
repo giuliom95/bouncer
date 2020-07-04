@@ -39,7 +39,7 @@ private:
 	Scene				scene;
 	RenderData			renderdata;
 
-	void render_roi(const OIIO::ROI roi);
+	void render_roi(const OIIO::ROI roi, const unsigned thread_id);
 	Vec3f estimate_li
 	(
 		RTCRay r, 

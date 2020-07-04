@@ -54,7 +54,7 @@ Bouncer::Bouncer(const boost::filesystem::path& scenepath)
 	: nthreads(std::thread::hardware_concurrency())
 	, embree_device(initialize_embree_device()) 
 	, scene(scenepath, embree_device)
-	, renderdata("./renderdata.bin")
+	, renderdata("./renderdata.bin", nthreads)
 {}
 
 Bouncer::~Bouncer()
@@ -78,7 +78,7 @@ void Bouncer::render()
 		threads[ti] = std::thread
 		(
 			&Bouncer::render_roi, 
-			this, roi
+			this, roi, ti
 		);
 	}
 
@@ -91,19 +91,18 @@ void Bouncer::writeimage(const boost::filesystem::path& imagepath)
 	scene.out_image.write(imagepath.string());
 }
 
-void Bouncer::render_roi(const OIIO::ROI roi)
-{
+void Bouncer::render_roi(
+	const OIIO::ROI roi, 
+	const unsigned thread_id
+) {
 	RTCIntersectContext intersect_context;
 	rtcInitIntersectContext(&intersect_context);
 	
 	Rand rand;
 	
-	const unsigned pixel_samples = 128;
+	const unsigned pixel_samples = 8;
 	const unsigned bounces = 4;
-	//const unsigned npaths = pixel_samples * roi.npixels();
-	//PathsGroup paths(npaths);
 
-	//unsigned p = 0;
 	for
 	(
 		OIIO::ImageBuf::Iterator<float> it(scene.out_image, roi); 
@@ -111,17 +110,19 @@ void Bouncer::render_roi(const OIIO::ROI roi)
 	) {
 		const Vec2f xy  {(float)it.x(), (float)it.y()}; 
 		Vec3f c{};
-		Path p = Path();
 		for(unsigned s = 0; s < pixel_samples; ++s)
 		{
 			const Vec2f pixel_ij{rand(),        rand()};
 			const Vec2f uv = scene.film_space(xy, pixel_ij);
 			RTCRay r = scene.camera.generate_ray(uv);
 
-			//paths[p].add_point({r.org_x, r.org_y, r.org_z});
+			Path p = Path();
+			p.add_point({r.org_x, r.org_y, r.org_z});
 
 			const Vec3f li = estimate_li
 				(r, &intersect_context, bounces, p, rand);
+
+			renderdata.pathgroups[thread_id].push_back(p);
 
 			if(valid(li))
 			{
@@ -132,10 +133,7 @@ void Bouncer::render_roi(const OIIO::ROI roi)
 		it[0] = c[0];
 		it[1] = c[1];
 		it[2] = c[2];
-		//++p;
 	}
-
-	//rd.pathgroups.push_back(paths);
 }
 
 Vec3f Bouncer::estimate_li
@@ -176,7 +174,7 @@ Vec3f Bouncer::estimate_li
 		const Vec3f bt = cross(t, n);
 		const Mat4f m{t, n, bt, {}};
 
-		//path.add_point(p);
+		path.add_point(p);
 
 		const Material mat = scene.materials[rh.hit.geomID];
 		const Vec3f kd = mat.albedo;
