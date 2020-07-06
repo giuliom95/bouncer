@@ -54,7 +54,7 @@ Bouncer::Bouncer(const boost::filesystem::path& scenepath)
 	: nthreads(std::thread::hardware_concurrency())
 	, embree_device(initialize_embree_device()) 
 	, scene(scenepath, embree_device)
-	, renderdata("./renderdata.bin", nthreads)
+	, renderdata(nthreads)
 {}
 
 Bouncer::~Bouncer()
@@ -83,7 +83,7 @@ void Bouncer::render()
 	}
 
 	for(unsigned ti = 0; ti < nthreads; ++ti) threads[ti].join();
-	renderdata.disk_store_all();
+	renderdata.disk_store_all("./renderdata");
 }
 
 void Bouncer::writeimage(const boost::filesystem::path& imagepath)
@@ -116,7 +116,7 @@ void Bouncer::render_roi(
 			const Vec2f uv = scene.film_space(xy, pixel_ij);
 			RTCRay r = scene.camera.generate_ray(uv);
 
-			Path p = Path();
+			Path<Vec3f> p = Path<Vec3f>();
 			p.add_point({r.org_x, r.org_y, r.org_z});
 
 			const Vec3f li = estimate_li
@@ -141,7 +141,7 @@ Vec3f Bouncer::estimate_li
 	RTCRay r, 
 	RTCIntersectContext* ic, 
 	int bounces,
-	Path& path,
+	Path<Vec3f>& path,
 	Rand& rand
 ) {
 	RTCRayHit rh{r, {}};
