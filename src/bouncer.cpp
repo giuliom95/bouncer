@@ -116,8 +116,8 @@ void Bouncer::render_roi(
 			const Vec2f uv = scene.film_space(xy, pixel_ij);
 			RTCRay r = scene.camera.generate_ray(uv);
 
-			Path<Vec3f> p = Path<Vec3f>();
-			p.add_point({r.org_x, r.org_y, r.org_z});
+			Path<Vec3h> p = Path<Vec3h>();
+			p.add_point(fromVec3f({r.org_x, r.org_y, r.org_z}));
 
 			const Vec3f li = estimate_li
 				(r, &intersect_context, bounces, p, rand);
@@ -141,7 +141,7 @@ Vec3f Bouncer::estimate_li
 	RTCRay r, 
 	RTCIntersectContext* ic, 
 	int bounces,
-	Path<Vec3f>& path,
+	Path<Vec3h>& path,
 	Rand& rand
 ) {
 	RTCRayHit rh{r, {}};
@@ -174,7 +174,7 @@ Vec3f Bouncer::estimate_li
 		const Vec3f bt = cross(t, n);
 		const Mat4f m{t, n, bt, {}};
 
-		path.add_point(p);
+		path.add_point(fromVec3f(p));
 
 		const Material mat = scene.materials[rh.hit.geomID];
 		const Vec3f kd = mat.albedo;

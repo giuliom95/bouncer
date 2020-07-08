@@ -37,7 +37,7 @@ private:
 	unsigned			nthreads;
 	RTCDevice			embree_device;
 	Scene				scene;
-	RenderData<Vec3f>	renderdata;
+	RenderData<Vec3h>	renderdata;
 
 	void render_roi(const OIIO::ROI roi, const unsigned thread_id);
 	Vec3f estimate_li
@@ -45,7 +45,7 @@ private:
 		RTCRay r, 
 		RTCIntersectContext* ic, 
 		int bounces,
-		Path<Vec3f>& path,
+		Path<Vec3h>& path,
 		Rand& rand
 	);
 };
