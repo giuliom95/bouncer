@@ -21,6 +21,18 @@ RTCRay ray(const Vec3f& o, const Vec3f& d)
 	return r;
 }
 
+Vec2f film_space(
+	const Vec2f  xy,
+	const Vec2f  pixel_space,
+	const Image& image
+){
+	const Vec2f ij = 2.0f*(
+		(xy - image.begin) / (image.size - 1)
+	) - 1.0f;
+	const Vec2f flipper{1,-1};
+	return flipper*ij + 2*(pixel_space / image.size);
+}
+
 Vec3f hemisphere_sampling(Rand& rand, const Vec3f& n)
 {
 	const auto r0 = rand();
@@ -43,6 +55,14 @@ bool valid(const Vec3f& li)
 	);
 }
 
+Image::Image(const OIIO::ImageSpec& spec) :
+OIIO::ImageBuf(spec)
+{
+	begin = Vec2f({(float)xbegin(), (float)ybegin()});
+	end   = Vec2f({(float)xend(),   (float)yend()});
+	size  = end - begin;
+}
+
 RTCDevice initialize_embree_device()
 {
 	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
@@ -55,6 +75,11 @@ Bouncer::Bouncer(const boost::filesystem::path& scenepath)
 	, embree_device(initialize_embree_device()) 
 	, scene(scenepath, embree_device)
 	, renderdata(nthreads)
+	, out_image(OIIO::ImageSpec(
+		scene.render_settings.width,
+		scene.render_settings.height,
+		3, OIIO::TypeDesc::FLOAT
+	))
 {}
 
 Bouncer::~Bouncer()
@@ -67,12 +92,12 @@ void Bouncer::render()
 	std::vector<std::thread> threads(nthreads);
 	const Vec2f roi_size
 	{
-		scene.out_image.size[0] / nthreads,
-		scene.out_image.size[1]
+		out_image.size[0] / nthreads,
+		out_image.size[1]
 	};
 	for(unsigned ti = 0; ti < nthreads; ++ti)
 	{
-		const Vec2f begin{scene.out_image.begin[0] + ti*roi_size[0], 0};
+		const Vec2f begin{out_image.begin[0] + ti*roi_size[0], 0};
 		const Vec2f end  {begin + roi_size};
 		OIIO::ROI roi(begin[0], end[0], begin[1], end[1]);
 		threads[ti] = std::thread
@@ -88,7 +113,7 @@ void Bouncer::render()
 
 void Bouncer::writeimage(const boost::filesystem::path& imagepath)
 {
-	scene.out_image.write(imagepath.string());
+	out_image.write(imagepath.string());
 }
 
 void Bouncer::render_roi(
@@ -100,12 +125,12 @@ void Bouncer::render_roi(
 	
 	Rand rand;
 	
-	const unsigned pixel_samples = 8;
+	const unsigned pixel_samples = scene.render_settings.spp;
 	const unsigned bounces = 4;
 
 	for
 	(
-		OIIO::ImageBuf::Iterator<float> it(scene.out_image, roi); 
+		OIIO::ImageBuf::Iterator<float> it(out_image, roi); 
 		!it.done(); ++it
 	) {
 		const Vec2f xy  {(float)it.x(), (float)it.y()}; 
@@ -113,7 +138,7 @@ void Bouncer::render_roi(
 		for(unsigned s = 0; s < pixel_samples; ++s)
 		{
 			const Vec2f pixel_ij{rand(),        rand()};
-			const Vec2f uv = scene.film_space(xy, pixel_ij);
+			const Vec2f uv = film_space(xy, pixel_ij, out_image);
 			RTCRay r = scene.camera.generate_ray(uv);
 
 			Path<Vec3h> p = Path<Vec3h>();

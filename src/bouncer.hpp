@@ -8,6 +8,8 @@
 #include <pmmintrin.h>
 #include <embree3/rtcore.h>
 
+#include <OpenImageIO/imagebuf.h>
+
 #include <boost/log/trivial.hpp>
 
 #include <random>
@@ -25,6 +27,15 @@ private:
 	std::uniform_real_distribution<float> 	dist;
 };
 
+class Image : 
+public OIIO::ImageBuf
+{
+public:
+	Image(const OIIO::ImageSpec& spec);
+	Vec2f begin;
+	Vec2f end;
+	Vec2f size;
+};
 
 class Bouncer
 {
@@ -38,6 +49,7 @@ private:
 	RTCDevice			embree_device;
 	Scene				scene;
 	RenderData<Vec3h>	renderdata;
+	Image				out_image;
 
 	void render_roi(const OIIO::ROI roi, const unsigned thread_id);
 	Vec3f estimate_li

@@ -3,7 +3,7 @@ import struct
 import pymel.core as pmc
 import os.path
 
-def exportVSSD(path, camName):   
+def exportVSSD(path, camName, spp):   
     
     mainFileDict = {}
     mainFilePath = path
@@ -15,7 +15,8 @@ def exportVSSD(path, camName):
     renderHeight = resolution.height.get()
     mainFileDict['render'] = {
         'width' : renderWidth,
-        'height': renderHeight
+        'height': renderHeight,
+        'spp'   : spp
     }
 
     cam = pmc.ls(camName)[0].getShape()

@@ -60,23 +60,13 @@ Material load_material(const nlohmann::json& json_material)
 	};
 }
 
-Image load_render_info(const nlohmann::json& json_render_info)
+RenderSettings load_render_settings(const nlohmann::json& json_render_info)
 {
-	return Image(
-		{
-			json_render_info["width"],
-			json_render_info["height"],
-			3, OIIO::TypeDesc::FLOAT
-		}
-	);
-}
-
-Image::Image(const OIIO::ImageSpec& spec) :
-OIIO::ImageBuf(spec)
-{
-	begin = Vec2f({(float)xbegin(), (float)ybegin()});
-	end   = Vec2f({(float)xend(),   (float)yend()});
-	size  = end - begin;
+	return {
+		json_render_info["width"],
+		json_render_info["height"],
+		json_render_info["spp"]
+	};
 }
 
 Scene::~Scene()
@@ -102,7 +92,6 @@ Scene::Scene(
 	json_file >> json_data;
 	json_file.close();
 
-
 	boost::filesystem::path buffers_file_path = json_path;
 	buffers_file_path.replace_extension(".bin");
 	std::ifstream buffers_file{buffers_file_path.string()};
@@ -113,7 +102,7 @@ Scene::Scene(
 		throw std::runtime_error("Could not open scene buffers file");
 	}
 
-	out_image = load_render_info(json_data["render"]);
+	render_settings = load_render_settings(json_data["render"]);
 	
 	camera = load_camera(json_data["camera"]);
 
@@ -218,15 +207,4 @@ Scene::Scene(
 
 	BOOST_LOG_TRIVIAL(info) << "Committing scene";
 	rtcCommitScene(embree_scene);
-}
-
-Vec2f Scene::film_space(
-	const Vec2f xy,
-	const Vec2f pixel_space
-){
-	const Vec2f ij = 2.0f*(
-		(xy - out_image.begin) / (out_image.size - 1)
-	) - 1.0f;
-	const Vec2f flipper{1,-1};
-	return flipper*ij + 2*(pixel_space / out_image.size);
 }
