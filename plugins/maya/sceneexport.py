@@ -3,7 +3,7 @@ import struct
 import pymel.core as pmc
 import os.path
 
-def exportVSSD(path, camName, spp):   
+def exportVSSD(path, camName, wantTris=False, renderdata=None):   
     
     mainFileDict = {}
     mainFilePath = path
@@ -13,11 +13,13 @@ def exportVSSD(path, camName, spp):
     resolution = pmc.ls('defaultResolution')[0]
     renderWidth = resolution.width.get()
     renderHeight = resolution.height.get()
-    mainFileDict['render'] = {
-        'width' : renderWidth,
-        'height': renderHeight,
-        'spp'   : spp
-    }
+
+    if renderdata is not None:
+        mainFileDict['render'] = {
+            'width' : renderWidth,
+            'height': renderHeight,
+            'spp'   : renderdata['spp']
+        }
 
     cam = pmc.ls(camName)[0].getShape()
     mainFileDict['camera'] = {
@@ -37,6 +39,11 @@ def exportVSSD(path, camName, spp):
     with open(bufPath, 'wb') as bufFd:
         for geom in geomList:
             print('Processing {}...'.format(geom))
+            
+            smoothLevel = pmc.displaySmoothness(geom, q=True, po=0)[0]
+            isSmooth = smoothLevel > 1
+            print('Smooth level {}'.format(smoothLevel))
+
             faceBuf = ''
             idxBuf = ''
             vtxBuf = ''
@@ -44,7 +51,12 @@ def exportVSSD(path, camName, spp):
             for face in geom.f:
                 vtxidxs = face.getVertices()
                 nvtxidxs = len(vtxidxs)
-                faceBuf += struct.pack('<I', nvtxidxs)
+                if not isSmooth and wantTris:
+                    if nvtxidxs > 3:
+                        print('Non-triangulated face. Triangulate before exporting')
+                        return
+                else:
+                    faceBuf += struct.pack('<I', nvtxidxs)
                 nidxs += nvtxidxs
                 for vtxidx in vtxidxs:
                     idxBuf += struct.pack('<I', vtxidx)
@@ -52,25 +64,29 @@ def exportVSSD(path, camName, spp):
                 p = vertex.getPosition('world')
                 vtxBuf += struct.pack('<fff', p.x, p.y, p.z)
             
-            edges = geom.edges
-            creaseIdxBuf = ''
-            creaseValBuf = ''
-            creases = pmc.modeling.polyCrease(edges, q=True, v=0)
             hasCreases = False
-            for e in range(0, len(edges)):
-                c = creases[e]
-                if c > 0:
-                    hasCreases = True
-                    vtxs = edges[e].connectedVertices()
-                    creaseIdxBuf += struct.pack('<I', vtxs[0].index())
-                    creaseIdxBuf += struct.pack('<I', vtxs[1].index())
-                    creaseValBuf += struct.pack('<f', c)
+            if isSmooth:
+                edges = geom.edges
+                creaseIdxBuf = ''
+                creaseValBuf = ''
+                creases = pmc.modeling.polyCrease(edges, q=True, v=0)
+                for e in range(0, len(edges)):
+                    c = creases[e]
+                    if c > 0:
+                        hasCreases = True
+                        vtxs = edges[e].connectedVertices()
+                        creaseIdxBuf += struct.pack('<I', vtxs[0].index())
+                        creaseIdxBuf += struct.pack('<I', vtxs[1].index())
+                        creaseValBuf += struct.pack('<f', c)
                     
             buffers = [
-                (faceBuf, 'faces'),
                 (idxBuf,  'indices'),
                 (vtxBuf,  'vertices')
             ]
+            if not wantTris:
+                buffers += [
+                    (faceBuf, 'faces')
+                ]
             if hasCreases:
                 buffers += [
                     (creaseIdxBuf, 'creaseindices'),
@@ -90,16 +106,14 @@ def exportVSSD(path, camName, spp):
                 })
                 offset += s
             
-            smoothLevel = pmc.displaySmoothness(geom, q=True, po=0)[0]
-            isSmooth = smoothLevel > 1
-            print('Smooth level {}'.format(smoothLevel))
-
+            
             sg = geom.connections(t='shadingEngine')[0]
             mat = sg.surfaceShader.connections()[0]
             albedo = mat.color.get()
             emittance = mat.incandescence.get()
 
             geomDict = {
+                'triangles' : wantTris,
                 'smooth'    : isSmooth,
                 'buffers'   : buffersList,
                 'material'  : {
