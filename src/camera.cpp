@@ -40,8 +40,8 @@ RTCRay Camera::generate_ray(const Vec2f ij)
 
 	const Vec3f on_film
 	{
-		ij[0]*.5f*(aspect*gate),
-		ij[1]*.5f*(gate),
+		(2*ij[0] - 1)*.5f*(aspect*gate),
+		(2*ij[1] - 1)*.5f*(gate),
 		-focal*MM_TO_CM
 	};
 	const Vec3f in_world = normalize(transformVector(mat, on_film));

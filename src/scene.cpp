@@ -79,6 +79,7 @@ Scene::Scene(
 	const boost::filesystem::path& json_path, 
 	RTCDevice& embree_device
 ) {
+	BOOST_LOG_TRIVIAL(info) << "Loading scene";
 	embree_scene = rtcNewScene(embree_device);
 
 	nlohmann::json json_data;
@@ -102,42 +103,49 @@ Scene::Scene(
 		throw std::runtime_error("Could not open scene buffers file");
 	}
 
+	BOOST_LOG_TRIVIAL(info) << "Loading render settings";
 	render_settings = load_render_settings(json_data["render"]);
-	
+
+	BOOST_LOG_TRIVIAL(info) << "Loading camera";
 	camera = load_camera(json_data["camera"]);
 
+	BOOST_LOG_TRIVIAL(info) << "Loading geometries";
 	for(const nlohmann::json json_geom : json_data["geometries"]) 
 	{
 		BOOST_LOG_TRIVIAL(info) << "Found geometry";
 
+		const bool triangles = json_geom["triangles"];
+
+		if(triangles)
+			BOOST_LOG_TRIVIAL(info) << "Loading triangle mesh";
+		else
+			BOOST_LOG_TRIVIAL(info) << "Loading subdiv surface";
+
 		const RTCGeometry embree_geom = rtcNewGeometry
 		(
 			embree_device,
+			triangles ?
+			RTC_GEOMETRY_TYPE_TRIANGLE :
 			RTC_GEOMETRY_TYPE_SUBDIVISION
 		);
 
 		for(const nlohmann::json json_buf : json_geom["buffers"])
 		{
 			std::string type = json_buf["type"];
-			if(type == "faces")
-			{
-				BOOST_LOG_TRIVIAL(info) << "Loading faces";
-				load_buffer
-				(
-					embree_geom, buffers_file,
-					sizeof(uint32_t), (size_t)json_buf["size"], 
-					RTC_BUFFER_TYPE_FACE, RTC_FORMAT_UINT
-				);
-			}
-			else if(type == "indices")
+			bool bufferloaded = false;
+
+			if(type == "indices")
 			{
 				BOOST_LOG_TRIVIAL(info) << "Loading indices";
 				load_buffer
 				(
 					embree_geom, buffers_file,
-					sizeof(uint32_t), (size_t)json_buf["size"], 
-					RTC_BUFFER_TYPE_INDEX, RTC_FORMAT_UINT
+					triangles ? 3*sizeof(uint32_t) : sizeof(uint32_t), 
+					(size_t)json_buf["size"], 
+					RTC_BUFFER_TYPE_INDEX,
+					triangles ? RTC_FORMAT_UINT3 : RTC_FORMAT_UINT
 				);
+				bufferloaded = true;
 			}
 			else if(type == "vertices")
 			{
@@ -148,50 +156,80 @@ Scene::Scene(
 					3*sizeof(float), (size_t)json_buf["size"], 
 					RTC_BUFFER_TYPE_VERTEX, RTC_FORMAT_FLOAT3
 				);
+				bufferloaded = true;
 			}
-			else if(type == "creaseindices")
+
+			// If the geometry is a triagle mesh these buffer types are useless
+			// A warning will be thrown if the user tries to load these buffers
+			//  in the context of a triangle mesh.
+			if(!triangles)
 			{
-				BOOST_LOG_TRIVIAL(info) << "Loading crease indices";
-				load_buffer
-				(
-					embree_geom, buffers_file,
-					2*sizeof(uint32_t), (size_t)json_buf["size"], 
-					RTC_BUFFER_TYPE_EDGE_CREASE_INDEX, RTC_FORMAT_UINT2
-				);
+				if(type == "faces")
+				{
+					BOOST_LOG_TRIVIAL(info) << "Loading faces";
+					load_buffer
+					(
+						embree_geom, buffers_file,
+						sizeof(uint32_t), (size_t)json_buf["size"], 
+						RTC_BUFFER_TYPE_FACE, RTC_FORMAT_UINT
+					);
+					bufferloaded = true;
+				}
+				else if(type == "creaseindices")
+				{
+					BOOST_LOG_TRIVIAL(info) << "Loading crease indices";
+					load_buffer
+					(
+						embree_geom, buffers_file,
+						2*sizeof(uint32_t), (size_t)json_buf["size"], 
+						RTC_BUFFER_TYPE_EDGE_CREASE_INDEX, RTC_FORMAT_UINT2
+					);
+					bufferloaded = true;
+				}
+				else if(type == "creasevalues")
+				{
+					BOOST_LOG_TRIVIAL(info) << "Loading crease values";
+					load_buffer
+					(
+						embree_geom, buffers_file,
+						sizeof(float), (size_t)json_buf["size"], 
+						RTC_BUFFER_TYPE_EDGE_CREASE_WEIGHT, RTC_FORMAT_FLOAT
+					);
+					bufferloaded = true;
+				}
 			}
-			else if(type == "creasevalues")
+
+			if(!bufferloaded)
 			{
-				BOOST_LOG_TRIVIAL(info) << "Loading crease values";
-				load_buffer
-				(
-					embree_geom, buffers_file,
-					sizeof(float), (size_t)json_buf["size"], 
-					RTC_BUFFER_TYPE_EDGE_CREASE_WEIGHT, RTC_FORMAT_FLOAT
-				);
+				BOOST_LOG_TRIVIAL(warning) << "Buffer " << type << " discarded";
 			}
 		}
 
-		BOOST_LOG_TRIVIAL(info) << "Setting subdivision level";
-		const bool is_smooth = json_geom["smooth"];
-		if(is_smooth)
+		// Subdivision levels do not apply on triangle meshes
+		if(!triangles)
 		{
-			rtcSetGeometryTessellationRate(embree_geom, 6);
+			BOOST_LOG_TRIVIAL(info) << "Setting subdivision level";
+			const bool is_smooth = json_geom["smooth"];
+			if(is_smooth)
+			{
+				rtcSetGeometryTessellationRate(embree_geom, 6);
 
-			rtcSetGeometrySubdivisionMode
-			(
-				embree_geom, 0,
-				RTC_SUBDIVISION_MODE_PIN_CORNERS
-			);
-		}
-		else
-		{
-			rtcSetGeometryTessellationRate(embree_geom, 0);
+				rtcSetGeometrySubdivisionMode
+				(
+					embree_geom, 0,
+					RTC_SUBDIVISION_MODE_PIN_CORNERS
+				);
+			}
+			else
+			{
+				rtcSetGeometryTessellationRate(embree_geom, 0);
 
-			rtcSetGeometrySubdivisionMode
-			(
-				embree_geom, 0,
-				RTC_SUBDIVISION_MODE_PIN_ALL
-			);
+				rtcSetGeometrySubdivisionMode
+				(
+					embree_geom, 0,
+					RTC_SUBDIVISION_MODE_PIN_ALL
+				);
+			}
 		}
 
 		const Material mat = load_material(json_geom["material"]);

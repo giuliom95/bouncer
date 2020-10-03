@@ -26,11 +26,8 @@ Vec2f film_space(
 	const Vec2f  pixel_space,
 	const Image& image
 ){
-	const Vec2f ij = 2.0f*(
-		(xy - image.begin) / (image.size - 1)
-	) - 1.0f;
-	const Vec2f flipper{1,-1};
-	return flipper*ij + 2*(pixel_space / image.size);
+	Vec2f fs = (xy + pixel_space) / image.size;
+	return{fs[0], (1-fs[1])};
 }
 
 Vec3f hemisphere_sampling(Rand& rand, const Vec3f& n)
@@ -74,7 +71,7 @@ Bouncer::Bouncer(const boost::filesystem::path& scenepath)
 	: nthreads(std::thread::hardware_concurrency())
 	, embree_device(initialize_embree_device()) 
 	, scene(scenepath, embree_device)
-	, renderdata(nthreads)
+	, gatherer(nthreads, "./renderdata")
 	, out_image(OIIO::ImageSpec(
 		scene.render_settings.width,
 		scene.render_settings.height,
@@ -108,7 +105,6 @@ void Bouncer::render()
 	}
 
 	for(unsigned ti = 0; ti < nthreads; ++ti) threads[ti].join();
-	renderdata.disk_store_all("./renderdata");
 }
 
 void Bouncer::writeimage(const boost::filesystem::path& imagepath)
@@ -128,6 +124,8 @@ void Bouncer::render_roi(
 	const unsigned pixel_samples = scene.render_settings.spp;
 	const unsigned bounces = 4;
 
+	BOOST_LOG_TRIVIAL(info) << "Render thread #" << thread_id << " started";
+
 	for
 	(
 		OIIO::ImageBuf::Iterator<float> it(out_image, roi); 
@@ -137,17 +135,23 @@ void Bouncer::render_roi(
 		Vec3f c{};
 		for(unsigned s = 0; s < pixel_samples; ++s)
 		{
-			const Vec2f pixel_ij{rand(),        rand()};
-			const Vec2f uv = film_space(xy, pixel_ij, out_image);
+			const Vec2f pixel_uv{rand(),        rand()};
+			const Vec2f uv = film_space(xy, pixel_uv, out_image);
 			RTCRay r = scene.camera.generate_ray(uv);
 
-			Path<Vec3h> p = Path<Vec3h>();
-			p.add_point(fromVec3f({r.org_x, r.org_y, r.org_z}));
+			//BOOST_LOG_TRIVIAL(info) << xy[0] << " " << xy[1] << " | " << pixel_uv[0] << " " << pixel_uv[1] << " | " << uv[0] << " " << uv[1];
 
 			const Vec3f li = estimate_li
-				(r, &intersect_context, bounces, p, rand);
+				(r, &intersect_context, bounces, rand, thread_id);
 
-			renderdata.pathgroups[thread_id].push_back(p);
+			gatherer.finalizepath(
+				thread_id, 
+				fromVec3f(li),
+				{
+					(uint16_t)xy[0], (uint16_t)xy[1],
+					(half)pixel_uv[0], (half)pixel_uv[1]
+				}
+			);
 
 			if(valid(li))
 			{
@@ -166,8 +170,8 @@ Vec3f Bouncer::estimate_li
 	RTCRay r, 
 	RTCIntersectContext* ic, 
 	int bounces,
-	Path<Vec3h>& path,
-	Rand& rand
+	Rand& rand,
+	const unsigned thread_id
 ) {
 	RTCRayHit rh{r, {}};
 	rh.hit.geomID = RTC_INVALID_GEOMETRY_ID;
@@ -199,7 +203,10 @@ Vec3f Bouncer::estimate_li
 		const Vec3f bt = cross(t, n);
 		const Mat4f m{t, n, bt, {}};
 
-		path.add_point(fromVec3f(p));
+		gatherer.addbounce(
+			thread_id, 
+			fromVec3f({r.org_x, r.org_y, r.org_z})
+		);
 
 		const Material mat = scene.materials[rh.hit.geomID];
 		const Vec3f kd = mat.albedo;
@@ -213,7 +220,9 @@ Vec3f Bouncer::estimate_li
 		{
 			const Vec3f new_d = hemisphere_sampling(rand, n);
 			RTCRay new_r = ray(p + 0.001f*n, new_d);
-			const Vec3f li = estimate_li(new_r, ic, bounces-1, path, rand);
+			const Vec3f li = estimate_li(
+				new_r, ic, bounces-1, rand, thread_id
+			);
 			
 			if(!valid(li))
 			{
@@ -231,7 +240,7 @@ Vec3f Bouncer::estimate_li
 
 int main()
 {
-	Bouncer b("../scenes/cornellbox/cornellbox.json");
+	Bouncer b("../scenes/triscornellbox/triscornellbox.json");
 	b.render();
 	b.writeimage("test.exr");
 }

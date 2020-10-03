@@ -22,25 +22,16 @@ endif(NOT MATH_INCLUDE)
 if(NOT GATHERER_INCLUDE)
   message(FATAL_ERROR "Please define GATHERER_INCLUDE")
 endif(NOT GATHERER_INCLUDE)
-if(NOT GATHERER_LIB)
-  message(FATAL_ERROR "Please define GATHERER_LIB")  
-endif(NOT GATHERER_LIB)
 
 get_filename_component(MATH_INCLUDE_ABS "${MATH_INCLUDE}"
                        REALPATH BASE_DIR "${CMAKE_BINARY_DIR}")
 get_filename_component(GATHERER_INCLUDE_ABS "${GATHERER_INCLUDE}"
-                       REALPATH BASE_DIR "${CMAKE_BINARY_DIR}")
-get_filename_component(GATHERER_LIB_ABS "${GATHERER_LIB}"
                        REALPATH BASE_DIR "${CMAKE_BINARY_DIR}")
 
 include_directories(
   include
   ${MATH_INCLUDE_ABS}
   ${GATHERER_INCLUDE_ABS}
-)
-
-link_directories(
-  ${GATHERER_LIB_ABS}
 )
 
 set( BOUNCER_SOURCES 
@@ -55,7 +46,6 @@ find_package(OpenImageIO REQUIRED)
 find_package(Boost COMPONENTS log filesystem REQUIRED)
 
 add_executable(${PROJECT_NAME} ${BOUNCER_SOURCES})
-target_link_libraries(${PROJECT_NAME} gatherer)
 target_link_libraries(${PROJECT_NAME} embree)
 target_link_libraries(${PROJECT_NAME} OpenImageIO)
 target_link_libraries(${PROJECT_NAME} ${Boost_LIBRARIES})
