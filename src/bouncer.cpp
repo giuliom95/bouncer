@@ -201,7 +201,7 @@ Vec3f Bouncer::estimate_li
 		const Vec3f n  = normalize(cross(dpdu, dpdv));
 		const Vec3f t  = normalize(dpdu);
 		const Vec3f bt = cross(t, n);
-		const Mat4f m{t, n, bt, {}};
+		const Mat4f n_mat{t, bt, n, {}};
 
 		gatherer.addbounce(
 			thread_id, 
@@ -218,8 +218,8 @@ Vec3f Bouncer::estimate_li
 		}
 		else
 		{
-			const Vec3f new_d = hemisphere_sampling(rand, n);
-			RTCRay new_r = ray(p + 0.001f*n, new_d);
+			const Vec3f o = hemisphere_sampling(rand, n);
+			RTCRay new_r = ray(p + 0.001f*n, o);
 			const Vec3f li = estimate_li(
 				new_r, ic, bounces-1, rand, thread_id
 			);
@@ -230,8 +230,98 @@ Vec3f Bouncer::estimate_li
 			}
 			else 
 			{
-				const float c = abs(dot(n, new_d));
-				return ke + (c*kd*li);
+				const float alpha_g = 1.0f;
+				const float ior_t = 1.2f;
+				const float ior_i = 1.0f;
+
+				const float xi_1 = rand();
+				const float xi_2 = rand();
+
+				const float alpha2_g = alpha_g*alpha_g;
+
+				const float theta_m_num = alpha_g * sqrt(xi_1);
+				const float theta_m_den = sqrt(1 - xi_1);
+				const float theta_m = atan(theta_m_num / theta_m_den);
+				const float phi_m = 2*PI*xi_2;
+				const float sin_theta_m = sin(theta_m);
+				const float cos_theta_m = cos(theta_m);
+				const Vec3f m_local{
+					sin_theta_m * cos(phi_m),
+					sin_theta_m * sin(phi_m),
+					cos_theta_m
+				};
+				const Vec3f m = transformVector(n_mat, m_local);
+
+				const float lamb_term = abs(dot(n, o));
+
+				const Vec3f i{r.dir_x, r.dir_y, r.dir_z};
+
+				const float i_dot_n = dot(i, n);
+				const float o_dot_n = dot(o, n);
+				const float m_dot_n = dot(m, n);
+				const float i_dot_m = dot(i, m);
+
+
+				const float f_c = abs(i_dot_m);
+				const float ior_frac = (ior_t*ior_t) / (ior_i*ior_i);
+				const float f_g = sqrt(ior_frac - 1 + f_c*f_c);
+				const float g_min_c = f_g - f_c;
+				const float g_plu_c = f_g + f_c;
+				const float g_min_c2 = g_min_c*g_min_c;
+				const float g_plu_c2 = g_plu_c*g_plu_c;
+				const float f_mult1 = g_min_c2/g_plu_c2;
+				const float f_mult2_num1 = (f_c*g_plu_c - 1);
+				const float f_mult2_num = f_mult2_num1*f_mult2_num1;
+				const float f_mult2_den1 = (f_c*g_min_c + 1);
+				const float f_mult2_den = f_mult2_den1*f_mult2_den1;
+				const float f_mult2 = 1 + (f_mult2_num / f_mult2_den);
+				const float f = 0.5f * f_mult1 * f_mult2;
+				/*const float f_u = dot(i, o);
+				const float m1_f_u = 1 - f_u;
+				const float m1_f_u2 = m1_f_u * m1_f_u;
+				const float m1_f_u5 = m1_f_u2 * m1_f_u2 * m1_f_u;
+				const float f_lambda = 0.7f;
+				const float f = f_lambda + (1-f_lambda)*m1_f_u5;*/
+
+
+				const float d_num = alpha2_g*(m_dot_n > 0);
+				const float cos2_theta_m = cos_theta_m*cos_theta_m;
+				const float cos4_theta_m = cos2_theta_m*cos2_theta_m;
+				const float tan_theta_m = sin_theta_m / cos_theta_m;
+				const float tan2_theta_m = tan_theta_m*tan_theta_m;
+				const float alpha2_tan2 = alpha2_g + tan2_theta_m;
+				const float alpha2_tan22 = alpha2_tan2*alpha2_tan2;
+				const float d_den = PI*cos4_theta_m*alpha2_tan22;
+				const float d = d_num / d_den;
+
+
+				float g_i = 0;
+				const float g_i_step = (i_dot_m / i_dot_n) > 0;
+				if(g_i_step > 0)
+				{
+					const float theta_i = acos(i_dot_n);
+					const float tan_theta_i = tan(theta_i);
+					const float tan2_theta_i = tan_theta_i*tan_theta_i;
+					const float g_i_den = 1 + sqrt(1 + alpha2_g*tan2_theta_i);
+					g_i = 2 / g_i_den;
+				}
+
+				float g_o = 0;
+				const float g_o_step = (dot(o, m) / o_dot_n) > 0;
+				if(g_o_step > 0)
+				{
+					const float theta_o = acos(o_dot_n);
+					const float tan_theta_o = tan(theta_o);
+					const float tan2_theta_o = tan_theta_o*tan_theta_o;
+					const float g_o_den = 1 + sqrt(1 + alpha2_g*tan2_theta_o);
+					g_o = 2 / g_o_den;
+				}
+
+				const float g = g_i*g_o;
+
+
+				const float brdf = (g*d)/(4*abs(i_dot_n)*abs(o_dot_n));
+				return ke + (lamb_term*(kd + PI*f*brdf*kd)*li);
 			}
 		}
 	}
@@ -240,7 +330,7 @@ Vec3f Bouncer::estimate_li
 
 int main()
 {
-	Bouncer b("../scenes/triscornellbox/triscornellbox.json");
+	Bouncer b("../scenes/boxbunny/boxbunny.json");
 	b.render();
-	b.writeimage("test.exr");
+	b.writeimage("boxbunny.exr");
 }
